@@ -1,184 +1,348 @@
-// Pixel Eye — 8-bit grayscale tiles assembling into a human eye with eyelids
+// Pixel Eye — 8-bit grayscale human eye with eyelids (glitchcore slices + static layered 3D)
 (function(){
-    const canvas = document.getElementById('scene');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+	const canvas = document.getElementById('scene');
+	if (!canvas) return;
+	const ctx = canvas.getContext('2d');
 
-    const DPR = Math.min(window.devicePixelRatio || 1, 2);
-    const aspect = 3/2; // canvas logical aspect
-    function fitCanvas() {
-        const boxW = canvas.clientWidth || 1200;
-        const boxH = canvas.clientHeight || 800;
-        canvas.width = Math.round(boxW * DPR);
-        canvas.height = Math.round(boxH * DPR);
-        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    }
-    fitCanvas();
-    window.addEventListener('resize', fitCanvas);
+	const DPR = Math.min(window.devicePixelRatio || 1, 2);
+	function fitCanvas() {
+		const boxW = canvas.clientWidth || 1200;
+		const boxH = canvas.clientHeight || 800;
+		canvas.width = Math.round(boxW * DPR);
+		canvas.height = Math.round(boxH * DPR);
+		ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+	}
+	fitCanvas();
+	window.addEventListener('resize', () => { fitCanvas(); rebuild(); });
 
-    // Grid config
-    const grid = {
-        cols: 96,
-        rows: 64,
-        size: 0, // computed
-        originX: 0,
-        originY: 0,
-    };
-    const FILL = 0.68; // fraction of cell occupied by tile (gutter creates spacing)
+	// Grid config - high density for detailed eye
+	const grid = { cols: 160, rows: 120, size: 0, originX: 0, originY: 0 };
+	const FILL = 0.75; // fraction of cell occupied by tile (gutter creates spacing)
 
-    function computeGrid() {
-        const w = canvas.width / DPR;
-        const h = canvas.height / DPR;
-        grid.size = Math.floor(Math.min(w / grid.cols, h / grid.rows));
-        const usedW = grid.size * grid.cols;
-        const usedH = grid.size * grid.rows;
-        grid.originX = Math.floor((w - usedW) / 2);
-        grid.originY = Math.floor((h - usedH) / 2);
-    }
+	function computeGrid() {
+		const w = canvas.width / DPR;
+		const h = canvas.height / DPR;
+		grid.size = Math.floor(Math.min(w / grid.cols, h / grid.rows));
+		const usedW = grid.size * grid.cols;
+		const usedH = grid.size * grid.rows;
+		grid.originX = Math.floor((w - usedW) / 2);
+		grid.originY = Math.floor((h - usedH) / 2);
+	}
 
-    // 8-bit grayscale helper
-    function gray(v){ const g = Math.max(0, Math.min(255, v|0)); return `rgb(${g},${g},${g})`; }
+	// Helpers
+	function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+	function gray(v){ const g = clamp(v|0, 0, 255); return `rgb(${g},${g},${g})`; }
+	function smoothstep(edge0, edge1, x){ const t = clamp((x - edge0) / (edge1 - edge0), 0, 1); return t * t * (3 - 2 * t); }
+	function easeOutCubic(x){ return 1 - Math.pow(1 - x, 3); }
+	function easeInOutSine(x){ return 0.5 * (1 - Math.cos(Math.PI * clamp(x,0,1))); }
+	function lerp(a, b, t){ return a + (b - a) * t; }
 
-    // Offscreen render of target eye at grid resolution
-    const off = document.createElement('canvas');
-    const offCtx = off.getContext('2d');
+	// Offscreen buffers: color (grayscale) + depth
+	const off = document.createElement('canvas');
+	const offCtx = off.getContext('2d');
+	const depthOff = document.createElement('canvas');
+	const depthCtx = depthOff.getContext('2d');
 
-    function renderTargetEye() {
-        off.width = grid.cols;
-        off.height = grid.rows;
-        const cx = off.width / 2;
-        const cy = off.height / 2;
-        const eyeW = Math.min(off.width, off.height) * 0.95; // fuller eye width to occupy canvas
-        const eyeHTop = eyeW * 0.22;   // upper lid arc height
-        const eyeHBot = eyeW * 0.28;   // lower lid arc height
-        const irisR = Math.min(off.width, off.height) * 0.20;
-        const pupilR = irisR * 0.42;
-        const image = offCtx.createImageData(off.width, off.height);
-        const data = image.data;
-        for (let y = 0; y < off.height; y++) {
-            for (let x = 0; x < off.width; x++) {
-                const u = (x - cx) / (eyeW * 0.5); // -1..1 across eye width
-                let inEye = false;
-                if (Math.abs(u) <= 1) {
-                    const arc = Math.sqrt(1 - u*u);
-                    const yTop = cy - eyeHTop * arc;
-                    const yBot = cy + eyeHBot * arc;
-                    inEye = (y >= yTop && y <= yBot);
-                }
-                let g8 = 0; // grayscale
-                let a = 0;
-                if (inEye) {
-                    a = 255;
-                    // sclera base
-                    g8 = 210;
-                    // iris shading
-                    const dx = x - cx;
-                    const dy = y - cy;
-                    const d = Math.hypot(dx, dy);
-                    const ring = d / irisR;
-                    if (d <= irisR) {
-                        const rings = 0.55 + 0.45 * Math.cos(ring * 14.0 + Math.atan2(dy, dx) * 3.0);
-                        g8 = Math.round(130 + rings * 70); // darker iris
-                        if (d < pupilR) g8 = 10; // pupil
-                        // highlight
-                        const hx = cx - irisR * 0.5;
-                        const hy = cy - irisR * 0.5;
-                        const hd = Math.hypot(x - hx, y - hy);
-                        if (hd < irisR * 0.35 && d > pupilR * 1.1) {
-                            const t = 1 - hd / (irisR * 0.35);
-                            g8 = Math.min(255, Math.round(g8 + t * 80));
-                        }
-                    }
-                    // eyelid shading near edges
-                    if (inEye) {
-                        const arc = Math.sqrt(1 - u*u);
-                        const yTop = cy - eyeHTop * arc;
-                        const yBot = cy + eyeHBot * arc;
-                        const distTop = Math.max(0, y - yTop);
-                        const distBot = Math.max(0, yBot - y);
-                        const edge = Math.min(distTop, distBot);
-                        const shade = Math.max(0, 1 - edge / (eyeHTop * 0.25));
-                        g8 = Math.round(g8 * (1 - shade * 0.3));
-                    }
-                }
-                const idx = (y * off.width + x) * 4;
-                data[idx] = g8;
-                data[idx+1] = g8;
-                data[idx+2] = g8;
-                data[idx+3] = a;
-            }
-        }
-        offCtx.putImageData(image, 0, 0);
-    }
+	function renderTargetEye() {
+		off.width = grid.cols;
+		off.height = grid.rows;
+		depthOff.width = grid.cols;
+		depthOff.height = grid.rows;
+		const cx = off.width / 2;
+		const cy = off.height / 2;
+		
+		// Eye dimensions - larger and open
+		const eyeW = Math.min(off.width, off.height) * 0.92;
+		const eyeH = eyeW * 0.52;
+		const irisR = eyeW * 0.2;
+		const pupilR = irisR * 0.3;
+		
+		// Eyelid dimensions (more open fissure)
+		const upperLidHeight = eyeH * 0.16;
+		const lowerLidHeight = eyeH * 0.10;
+		const fissureLift = eyeH * 0.08; // opens gap equally up/down
+		const canthusTilt = eyeH * 0.04; // lateral canthus slightly higher
+		const topBandMax = eyeH * 0.10;  // dark upper lid band thickness (max center)
+		const botBandMax = eyeH * 0.06;  // light lower lid band thickness (max center)
+		
+		// Tear duct (inner corner)
+		const tearDuctX = cx - eyeW * 0.45;
+		const tearDuctY = cy;
+		const tearDuctR = eyeW * 0.06;
+		
+		const image = offCtx.createImageData(off.width, off.height);
+		const data = image.data;
+		const depthImg = depthCtx.createImageData(depthOff.width, depthOff.height);
+		const depthData = depthImg.data;
+		
+		function almondTop(u){
+			// Almond curve for upper lid: tapered corners, fuller center. Asymmetry to outer side
+			const a = Math.pow(1 - Math.abs(u), 0.9);
+			const outerBias = 0.08 * u; // slight pull towards outer canthus
+			return upperLidHeight * (0.5 + 0.6 * a) - canthusTilt * u + outerBias * eyeH;
+		}
+		function almondBot(u){
+			// Almond curve for lower lid: flatter than top
+			const a = Math.pow(1 - Math.abs(u), 1.1);
+			const outerBias = 0.05 * u;
+			return lowerLidHeight * (0.35 + 0.5 * a) - canthusTilt * u + outerBias * eyeH * 0.5;
+		}
+		function bandTop(u){
+			const a = Math.pow(1 - Math.abs(u), 0.7);
+			return topBandMax * a;
+		}
+		function bandBot(u){
+			const a = Math.pow(1 - Math.abs(u), 0.8);
+			return botBandMax * a;
+		}
+		
+		for (let y = 0; y < off.height; y++) {
+			for (let x = 0; x < off.width; x++) {
+				let g8 = 0;     // grayscale
+				let a = 0;      // alpha
+				let z = 0;      // depth 0..1 (0 = far, 1 = near)
+				
+				const dx = x - cx;
+				const dy = y - cy;
+				const u = dx / (eyeW * 0.5);
+				
+				let inEye = false;
+				let isEyelid = false;
+				let isEyelash = false;
+				let isTearDuct = false;
+				
+				// Tear duct (inner corner)
+				const tearDx = x - tearDuctX;
+				const tearDy = y - tearDuctY;
+				const tearD = Math.hypot(tearDx, tearDy);
+				if (tearD < tearDuctR) {
+					isTearDuct = true;
+					g8 = 200; a = 255; z = 0.55;
+				}
+				
+				// Eye shape with eyelids (almond/ocidental)
+				if (Math.abs(u) <= 1) {
+					const yTopCurve = cy - fissureLift - almondTop(u);
+					const yBotCurve = cy + fissureLift + almondBot(u);
+					
+					// Eye opening
+					if (y >= yTopCurve && y <= yBotCurve) {
+						inEye = true;
+						// Sclera
+						g8 = 220; a = 255; z = 0.40;
+						// Corneal dome influence (bulge)
+						const rEyeX = (dx) / (eyeW * 0.5);
+						const rEyeY = (dy) / (eyeH * 0.5);
+						const dome = Math.sqrt(Math.max(0, 1 - (rEyeX*rEyeX + rEyeY*rEyeY)));
+						z = Math.max(z, 0.40 + dome * 0.15);
+						
+						// Iris and pupil (static base colors/depth)
+						const d = Math.hypot(dx, dy);
+						if (d <= irisR) {
+							const angle = Math.atan2(dy, dx);
+							const radius = d / irisR;
+							const rings = 0.4 + 0.6 * Math.cos(radius * 15 + angle * 3) * Math.sin(radius * 8 + angle * 2);
+							g8 = Math.round(90 + rings * 70);
+							z = Math.max(z, 0.50 + dome * 0.10);
+							if (d < pupilR) { g8 = 5; z = 0.35; }
+						}
+						
+						// Eyelid shadowing (softer)
+						const distToTop = Math.max(0, y - yTopCurve);
+						const distToBot = Math.max(0, yBotCurve - y);
+						const edgeDist = Math.min(distToTop, distToBot);
+						const shadow = Math.max(0, 1 - edgeDist / (upperLidHeight * 0.40));
+						g8 = Math.round(g8 * (1 - shadow * 0.16));
+					}
+					
+					// Eyelid bands (outside opening)
+					const topBand = cy - fissureLift - almondTop(u) - bandTop(u);
+					const botBand = cy + fissureLift + almondBot(u) + bandBot(u);
+					if (y >= topBand && y < (cy - fissureLift - almondTop(u))) {
+						isEyelid = true; g8 = 70; a = 255; z = 0.70;
+					}
+					if (y > (cy + fissureLift + almondBot(u)) && y <= botBand) {
+						isEyelid = true; g8 = 180; a = 255; z = 0.60;
+					}
+				}
+				
+				// Upper eyelashes near top curve
+				if (Math.abs(u) <= 0.9 && y < (cy - fissureLift - almondTop(u)) - 1) {
+					if (Math.random() < 0.26) { isEyelash = true; g8 = 15; a = 255; z = 0.80; }
+				}
+				// Lower eyelashes near bottom curve
+				if (Math.abs(u) <= 0.75 && y > (cy + fissureLift + almondBot(u)) + 1) {
+					if (Math.random() < 0.16) { isEyelash = true; g8 = 15; a = 255; z = 0.78; }
+				}
+				
+				// Write color
+				const idx = (y * off.width + x) * 4;
+				data[idx] = g8; data[idx+1] = g8; data[idx+2] = g8; data[idx+3] = a;
+				// Write depth into alpha channel of depth buffer (scaled 0..255)
+				const di = idx;
+				const dz = clamp(Math.round(z * 255), 0, 255);
+				depthData[di] = dz; depthData[di+1] = dz; depthData[di+2] = dz; depthData[di+3] = a;
+			}
+		}
+		offCtx.putImageData(image, 0, 0);
+		depthCtx.putImageData(depthImg, 0, 0);
+	}
 
-    // Tiles: start scattered, animate to grid cells with quantized colors
-    let tiles = [];
-    function initTiles() {
-        tiles = [];
-        for (let y = 0; y < grid.rows; y++) {
-            for (let x = 0; x < grid.cols; x++) {
-                // read color from target
-                const p = offCtx.getImageData(x, y, 1, 1).data;
-                if (p[3] < 8) continue; // skip transparent
-                const g8 = p[0];
-                // scatter start
-                const angle = Math.random() * Math.PI * 2;
-                const radius = Math.random() * Math.max(grid.cols, grid.rows) * 2;
-                const sx = grid.originX + (x + 0.5) * grid.size + Math.cos(angle) * radius * grid.size;
-                const sy = grid.originY + (y + 0.5) * grid.size + Math.sin(angle) * radius * grid.size;
-                tiles.push({
-                    x0: sx, y0: sy,
-                    x1: grid.originX + x * grid.size,
-                    y1: grid.originY + y * grid.size,
-                    x: sx, y: sy,
-                    color: gray(g8),
-                });
-            }
-        }
-    }
+	// Scene geometry for static 3D mapping
+	let sceneCenterX = 0;
+	let sceneCenterY = 0;
+	let radiusX = 0;
+	let radiusY = 0;
+	let mouseX = 0;
+	let mouseY = 0;
+	let targetGazeX = 0;
+	let targetGazeY = 0;
+	let currentGazeX = 0;
+	let currentGazeY = 0;
+	
+	function computeSceneGeometry(){
+		const w = canvas.width / DPR;
+		const h = canvas.height / DPR;
+		sceneCenterX = w / 2;
+		sceneCenterY = h / 2;
+		radiusX = grid.size * grid.cols * 0.5;
+		radiusY = grid.size * grid.rows * 0.5;
+	}
+	
+	// Mouse tracking for eye gaze
+	function updateGaze() {
+		// map mouse to normalized offsets using drawn eye radius
+		const nx = clamp((mouseX - sceneCenterX) / Math.max(1, radiusX), -1, 1);
+		const ny = clamp((mouseY - sceneCenterY) / Math.max(1, radiusY), -1, 1);
+		// realistic max angles (radians)
+		const maxYaw = 0.6;   // left-right
+		const maxPitch = 0.45; // up-down
+		targetGazeX = nx * maxYaw;
+		targetGazeY = ny * maxPitch;
+		// faster smoothing for responsiveness
+		currentGazeX += (targetGazeX - currentGazeX) * 0.25;
+		currentGazeY += (targetGazeY - currentGazeY) * 0.25;
+	}
+	canvas.addEventListener('mousemove', (e) => {
+		const rect = canvas.getBoundingClientRect();
+		mouseX = e.clientX - rect.left;
+		mouseY = e.clientY - rect.top;
+	});
+	canvas.addEventListener('mouseleave', () => { targetGazeX = 0; targetGazeY = 0; });
 
-    let mode = 'assemble';
-    let t0 = 0;
-    const duration = 1400;
+	// Tiles: start scattered, then assemble to static 3D positions
+	let tiles = [];
+	function initTiles() {
+		tiles = [];
+		for (let y = 0; y < grid.rows; y++) {
+			for (let x = 0; x < grid.cols; x++) {
+				const p = offCtx.getImageData(x, y, 1, 1).data;
+				if (p[3] < 8) continue; // transparent -> skip
+				const g8 = p[0];
+				const dpx = depthCtx.getImageData(x, y, 1, 1).data;
+				const z = dpx[0] / 255; // 0..1
+				// Base 2D cell center
+				const baseX = grid.originX + x * grid.size + grid.size * 0.5;
+				const baseY = grid.originY + y * grid.size + grid.size * 0.5;
+				// Perspective based on depth (static)
+				const f = 1.6;
+				const depthScale = 0.9;
+				const w = (z - 0.5) * 2; // -1..1 around center
+				const persp = f / (f - w * depthScale);
+				const targetCX = sceneCenterX + (baseX - sceneCenterX) * persp;
+				const targetCY = sceneCenterY + (baseY - sceneCenterY) * persp;
+				const targetX = targetCX - grid.size * 0.5;
+				const targetY = targetCY - grid.size * 0.5;
+				// scatter start
+				const angle = Math.random() * Math.PI * 2;
+				const radius = Math.random() * Math.max(grid.cols, grid.rows) * 2;
+				const sx = targetX + grid.size * 0.5 + Math.cos(angle) * radius * grid.size;
+				const sy = targetY + grid.size * 0.5 + Math.sin(angle) * radius * grid.size;
+				// per-tile timing for smoother assembly
+				const delayMs = Math.random() * 300; // 0..300ms
+				const durMs = 1200 + Math.random() * 1000; // 1.2s..2.2s
+				tiles.push({ x0: sx, y0: sy, x1: targetX, y1: targetY, g: g8, z, delayMs, durMs });
+			}
+		}
+	}
 
-    function draw(ts) {
-        if (!t0) t0 = ts;
-        const t = Math.min(1, (ts - t0) / duration);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // background
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+	function draw(ts) {
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		ctx.fillStyle = '#000';
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // animate
-        for (const tile of tiles) {
-            const u = mode === 'assemble' ? t : (1 - t);
-            const px = tile.x0 + (tile.x1 - tile.x0) * easeOutCubic(u);
-            const py = tile.y0 + (tile.y1 - tile.y0) * easeOutCubic(u);
-            ctx.fillStyle = tile.color;
-            const s = grid.size * FILL;
-            const ox = (grid.size - s) * 0.5;
-            const oy = (grid.size - s) * 0.5;
-            ctx.fillRect(px + ox, py + oy, s, s);
-        }
-        requestAnimationFrame(draw);
-    }
+		updateGaze();
+		const ax = -currentGazeY; // pitch (up/down) inverted so up=up
+		const ay = currentGazeX; // yaw (left/right)
+		const f = 1.8; // focal length
+		const depthScale = 0.9;
 
-    function easeOutCubic(x){ return 1 - Math.pow(1 - x, 3); }
+		let allAssembled = true;
+		for (const tile of tiles) {
+			const localT = clamp((ts - startAtMs - tile.delayMs) / tile.durMs, 0, 1);
+			const eased = easeInOutSine(localT);
+			if (localT < 1) allAssembled = false;
 
-    function rebuild() {
-        computeGrid();
-        renderTargetEye();
-        initTiles();
-        // show assembled immediately on load
-        t0 = performance.now() - duration;
-    }
+			// Compute 3D rotation around the eye center using sphere mapping
+			const baseCX = tile.x1 + grid.size * 0.5;
+			const baseCY = tile.y1 + grid.size * 0.5;
+			const u = (baseCX - sceneCenterX) / Math.max(1, radiusX); // -1..1
+			const v = (baseCY - sceneCenterY) / Math.max(1, radiusY); // -1..1
+			const zSph = Math.sqrt(Math.max(0, 1 - u*u - v*v));
+			// mix sphere with depth map for relief
+			const wRelief = (tile.z - 0.4) * 1.2; // roughly -0.48..0.72
+			let x3 = u;
+			let y3 = v;
+			let z3 = clamp(0.6 * zSph + 0.4 * wRelief, -1, 1);
+			// rotate around X (ax) and Y (ay)
+			const cosX = Math.cos(ax), sinX = Math.sin(ax);
+			let yx = y3 * cosX - z3 * sinX;
+			let zx = y3 * sinX + z3 * cosX;
+			const cosY = Math.cos(ay), sinY = Math.sin(ay);
+			let xy = x3 * cosY + zx * sinY;
+			let zy = -x3 * sinY + zx * cosY;
+			// perspective
+			const persp = f / (f - zy * depthScale);
+			const rotCX = sceneCenterX + xy * radiusX * persp;
+			const rotCY = sceneCenterY + yx * radiusY * persp;
+			const rotX = rotCX - grid.size * 0.5;
+			const rotY = rotCY - grid.size * 0.5;
 
-    // UI
-    document.getElementById('assemble')?.addEventListener('click', () => { mode = 'assemble'; t0 = performance.now(); });
-    document.getElementById('scatter')?.addEventListener('click', () => { mode = 'scatter'; t0 = performance.now(); });
+			// assemble interpolation from scatter to rotated target
+			const px = lerp(tile.x0, rotX, eased);
+			const py = lerp(tile.y0, rotY, eased);
 
-    rebuild();
-    requestAnimationFrame(draw);
+			const shade = 0.4 + 0.6 * tile.z;
+			ctx.fillStyle = gray(tile.g * shade);
+			const s = grid.size * FILL * persp;
+			const ox = (grid.size - s) * 0.5;
+			const oy = (grid.size - s) * 0.5;
+			ctx.fillRect(px + ox, py + oy, s, s);
+		}
+		// Glitch only after assembled to keep animation fluid
+		if (allAssembled && Math.random() < 0.015) {
+			const bands = 2;
+			for (let i = 0; i < bands; i++) {
+				const y = Math.random() * (canvas.height - 4) | 0;
+				const h = (Math.random() * 10 + 2) | 0;
+				const dx = ((Math.random() - 0.5) * 10) | 0;
+				ctx.drawImage(canvas, 0, y, canvas.width, h, dx, y, canvas.width, h);
+			}
+		}
+		requestAnimationFrame(draw);
+	}
+
+	let startAtMs = 0;
+	function rebuild() {
+		computeGrid();
+		computeSceneGeometry();
+		renderTargetEye();
+		initTiles();
+		startAtMs = performance.now();
+	}
+
+	rebuild();
+	requestAnimationFrame(draw);
 })();
 
 
