@@ -1,7 +1,7 @@
 # Projeto-Desprogramar
 Projeto da Matéria de Extensão 
  
-## Página: Olho em Pixels 16-bit
+## Página: Olho em Pixels 8-bit (grayscale)
 
 Arquivos:
 - `index.html`
@@ -10,8 +10,9 @@ Arquivos:
 
 Como usar:
 - Abra `index.html` no navegador.
-- Clique em "Organizar" para montar o olho. "Dispersar" espalha os tiles.
+- Mova o mouse sobre a tela: o olho acompanha o cursor após a montagem inicial.
 
 Notas técnicas:
-- Agora o render é 8-bit (tons de cinza). A estética é preto e branco.
+- Render 8-bit (tons de cinza), estética preto e branco (glitchcore sutil).
 - O olho possui formato humano com pálpebras, íris, pupila e brilho.
+- A animação começa com tiles dispersos que se organizam e seguem o olhar.
