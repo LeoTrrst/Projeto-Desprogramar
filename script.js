@@ -42,12 +42,17 @@
 	const offCtx = off.getContext('2d');
 	const depthOff = document.createElement('canvas');
 	const depthCtx = depthOff.getContext('2d');
+	// Pupil mask buffer (alpha marks pupil pixels)
+	const pupilOff = document.createElement('canvas');
+	const pupilCtx = pupilOff.getContext('2d');
 
 	function renderTargetEye() {
 		off.width = grid.cols;
 		off.height = grid.rows;
 		depthOff.width = grid.cols;
 		depthOff.height = grid.rows;
+		pupilOff.width = grid.cols;
+		pupilOff.height = grid.rows;
 		const cx = off.width / 2;
 		const cy = off.height / 2;
 		
@@ -73,7 +78,9 @@
 		const image = offCtx.createImageData(off.width, off.height);
 		const data = image.data;
 		const depthImg = depthCtx.createImageData(depthOff.width, depthOff.height);
+		const pupilImg = pupilCtx.createImageData(pupilOff.width, pupilOff.height);
 		const depthData = depthImg.data;
+		const pupilData = pupilImg.data;
 		
 		function almondTop(u){
 			// Almond curve for upper lid: tapered corners, fuller center. Asymmetry to outer side
@@ -144,7 +151,7 @@
 							const rings = 0.4 + 0.6 * Math.cos(radius * 15 + angle * 3) * Math.sin(radius * 8 + angle * 2);
 							g8 = Math.round(90 + rings * 70);
 							z = Math.max(z, 0.50 + dome * 0.10);
-							if (d < pupilR) { g8 = 5; z = 0.35; }
+						if (d < pupilR) { g8 = 5; z = 0.35; }
 						}
 						
 						// Eyelid shadowing (softer)
@@ -182,10 +189,14 @@
 				const di = idx;
 				const dz = clamp(Math.round(z * 255), 0, 255);
 				depthData[di] = dz; depthData[di+1] = dz; depthData[di+2] = dz; depthData[di+3] = a;
+				// Write pupil mask: alpha=255 only for pupil pixels
+				const isPupilPx = a > 0 && (Math.hypot(dx, dy) < pupilR);
+				pupilData[di] = 0; pupilData[di+1] = 0; pupilData[di+2] = 0; pupilData[di+3] = isPupilPx ? 255 : 0;
 			}
 		}
 		offCtx.putImageData(image, 0, 0);
 		depthCtx.putImageData(depthImg, 0, 0);
+		pupilCtx.putImageData(pupilImg, 0, 0);
 	}
 
 	// Scene geometry for static 3D mapping
@@ -232,6 +243,11 @@
 
 	// Tiles: start scattered, then assemble to static 3D positions
 	let tiles = [];
+	let dispersing = false;
+	let disperseStartMs = 0;
+	const DISPERSE_DUR_MS = 2000;
+	let disperseClickX = 0;
+	let disperseClickY = 0;
 	function initTiles() {
 		tiles = [];
 		for (let y = 0; y < grid.rows; y++) {
@@ -241,6 +257,8 @@
 				const g8 = p[0];
 				const dpx = depthCtx.getImageData(x, y, 1, 1).data;
 				const z = dpx[0] / 255; // 0..1
+				const mask = pupilCtx.getImageData(x, y, 1, 1).data;
+				const isPupil = mask[3] > 0;
 				// Base 2D cell center
 				const baseX = grid.originX + x * grid.size + grid.size * 0.5;
 				const baseY = grid.originY + y * grid.size + grid.size * 0.5;
@@ -261,7 +279,7 @@
 				// per-tile timing for smoother assembly
 				const delayMs = Math.random() * 300; // 0..300ms
 				const durMs = 1200 + Math.random() * 1000; // 1.2s..2.2s
-				tiles.push({ x0: sx, y0: sy, x1: targetX, y1: targetY, g: g8, z, delayMs, durMs });
+				tiles.push({ x0: sx, y0: sy, x1: targetX, y1: targetY, g: g8, z, delayMs, durMs, isPupil, screenX: 0, screenY: 0, screenS: 0, dispDx: 0, dispDy: 0 });
 			}
 		}
 	}
@@ -309,24 +327,58 @@
 			const rotY = rotCY - grid.size * 0.5;
 
 			// assemble interpolation from scatter to rotated target
-			const px = lerp(tile.x0, rotX, eased);
-			const py = lerp(tile.y0, rotY, eased);
+			let px = lerp(tile.x0, rotX, eased);
+			let py = lerp(tile.y0, rotY, eased);
 
 			const shade = 0.4 + 0.6 * tile.z;
 			ctx.fillStyle = gray(tile.g * shade);
 			const s = grid.size * FILL * persp;
 			const ox = (grid.size - s) * 0.5;
 			const oy = (grid.size - s) * 0.5;
+			// Save screen rect for hit testing
+			tile.screenX = px + ox;
+			tile.screenY = py + oy;
+			tile.screenS = s;
+			// Apply dispersion offset if active
+			if (dispersing) {
+				const tDisp = clamp((ts - disperseStartMs) / DISPERSE_DUR_MS, 0, 1);
+				const eDisp = easeInOutSine(tDisp);
+				px += tile.dispDx * eDisp;
+				py += tile.dispDy * eDisp;
+				
+				// Only render tiles that are still visible on screen
+				const finalX = px + ox;
+				const finalY = py + oy;
+				const w = canvas.width / DPR;
+				const h = canvas.height / DPR;
+				
+				// Skip rendering if tile is completely outside screen bounds
+				if (finalX + s < 0 || finalX > w || finalY + s < 0 || finalY > h) {
+					continue;
+				}
+			}
 			ctx.fillRect(px + ox, py + oy, s, s);
 		}
 		// Glitch only after assembled to keep animation fluid
-		if (allAssembled && Math.random() < 0.015) {
+		if (!dispersing && allAssembled && Math.random() < 0.015) {
 			const bands = 2;
 			for (let i = 0; i < bands; i++) {
 				const y = Math.random() * (canvas.height - 4) | 0;
 				const h = (Math.random() * 10 + 2) | 0;
 				const dx = ((Math.random() - 0.5) * 10) | 0;
 				ctx.drawImage(canvas, 0, y, canvas.width, h, dx, y, canvas.width, h);
+			}
+		}
+		// Redirect to search page after dispersion completes
+		if (dispersing) {
+			const done = (ts - disperseStartMs) >= DISPERSE_DUR_MS;
+			if (done) {
+				// Add glitch effect before redirect
+				document.body.style.filter = 'hue-rotate(180deg) brightness(1.5)';
+				setTimeout(() => {
+					window.location.href = 'search.html';
+				}, 300);
+				return;
 			}
 		}
 		requestAnimationFrame(draw);
@@ -341,8 +393,43 @@
 		startAtMs = performance.now();
 	}
 
+	function triggerDisperse(cx, cy) {
+		dispersing = true;
+		disperseStartMs = performance.now();
+		disperseClickX = cx;
+		disperseClickY = cy;
+		for (const tile of tiles) {
+			const centerX = tile.screenX + tile.screenS * 0.5;
+			const centerY = tile.screenY + tile.screenS * 0.5;
+			const vx = centerX - cx;
+			const vy = centerY - cy;
+			const len = Math.hypot(vx, vy) || 1;
+			const nx = vx / len;
+			const ny = vy / len;
+			const mag = (grid.size * Math.max(grid.cols, grid.rows)) * (2.5 + Math.random() * 1.5);
+			tile.dispDx = nx * mag;
+			tile.dispDy = ny * mag;
+		}
+	}
+
 	rebuild();
 	requestAnimationFrame(draw);
+
+	// Click detection on pupil region (accounts for current eye motion via stored screen rects)
+	canvas.addEventListener('click', (e) => {
+		const rect = canvas.getBoundingClientRect();
+		const mx = e.clientX - rect.left;
+		const my = e.clientY - rect.top;
+		// if already dispersing, ignore
+		if (dispersing) return;
+		// Check if click intersects any tile marked as pupil
+		let hit = false;
+		for (const t of tiles) {
+			if (!t.isPupil) continue;
+			if (mx >= t.screenX && mx <= (t.screenX + t.screenS) && my >= t.screenY && my <= (t.screenY + t.screenS)) { hit = true; break; }
+		}
+		if (hit) { triggerDisperse(mx, my); }
+	});
 })();
 
 
