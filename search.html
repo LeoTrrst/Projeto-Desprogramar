@@ -4,14 +4,43 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#000000">
-    <title>Search Engine — Glitchcore</title>
-    <meta name="description" content="Motor de busca pixelado em 8-bit, estética glitchcore em preto e branco.">
-    <link rel="stylesheet" href="styles.css">
+    <title>Agent(e) — Motor de Busca ASCII</title>
+    <meta name="description" content="Motor de busca Agent(e) com interface ASCII art retro.">
+    <link rel="stylesheet" href="search-styles.css">
 </head>
 <body>
-    <main class="wrap">
-        <canvas id="searchCanvas" width="1200" height="800" aria-label="Página de busca em pixels 8-bit, glitchcore"></canvas>
-    </main>
+    <div class="ascii-container">
+        <div class="logo-ascii">
+            <pre>█████╗  ██████╗ ███████╗███╗   ██╗████████╗[███████╗]
+██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝[██╔════╝]
+███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║   [█████╗  ]
+██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║   [██╔══╝  ]
+██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   [███████╗]
+╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   [╚══════╝]</pre>
+        </div>
+        
+        <div class="search-section">
+            <div class="search-bar-ascii">
+                <pre>┌─────────────────────────────────────────────────────────────────┐
+│  Digite sua pesquisa...                                       │
+└─────────────────────────────────────────────────────────────────┘</pre>
+            </div>
+            
+            <div class="buttons-ascii">
+                <pre>┌─────────────┐
+│   Buscar    │
+└─────────────┘</pre>
+            </div>
+        </div>
+        
+        <div class="footer-ascii">
+            <pre>Brasil</pre>
+            <div class="footer-links">
+                <span>Sobre</span> • <span>Publicidade</span> • <span>Negócios</span> • <span>Como funciona</span> • <span>Privacidade</span> • <span>Termos</span> • <span>Configurações</span>
+            </div>
+        </div>
+    </div>
+    
     <script src="search.js"></script>
 </body>
 </html>

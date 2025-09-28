@@ -1,260 +1,228 @@
-// Search Page — Same aesthetic as index.html but forming search page
+// Agent(e) Search Engine - ASCII Art Interactive Interface
 (function(){
-	const canvas = document.getElementById('searchCanvas');
-	if (!canvas) return;
-	const ctx = canvas.getContext('2d');
+    // Initialize ASCII art interface
+    function initASCIIInterface() {
+        // Add interactive functionality to search bar
+        const searchBar = document.querySelector('.search-bar-ascii pre');
+        if (searchBar) {
+            searchBar.addEventListener('click', function() {
+                // Create a real input field overlay
+                createSearchInput();
+            });
+        }
 
-	const DPR = Math.min(window.devicePixelRatio || 1, 2);
-	function fitCanvas() {
-		const boxW = canvas.clientWidth || 1200;
-		const boxH = canvas.clientHeight || 800;
-		canvas.width = Math.round(boxW * DPR);
-		canvas.height = Math.round(boxH * DPR);
-		ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-	}
-	fitCanvas();
-	window.addEventListener('resize', () => { fitCanvas(); rebuild(); });
+        // Add functionality to buttons
+        const buttons = document.querySelector('.buttons-ascii pre');
+        if (buttons) {
+            buttons.addEventListener('click', function(e) {
+                // Single button - Search
+                performSearch();
+            });
+        }
 
-	// Grid config - same as index
-	const grid = { cols: 160, rows: 120, size: 0, originX: 0, originY: 0 };
-	const FILL = 0.75; // fraction of cell occupied by tile (gutter creates spacing)
+        // Add glitch effects
+        addGlitchEffects();
+        
+        // Add typing animation to logo
+        animateLogo();
+    }
 
-	function computeGrid() {
-		const w = canvas.width / DPR;
-		const h = canvas.height / DPR;
-		grid.size = Math.floor(Math.min(w / grid.cols, h / grid.rows));
-		const usedW = grid.size * grid.cols;
-		const usedH = grid.size * grid.rows;
-		grid.originX = Math.floor((w - usedW) / 2);
-		grid.originY = Math.floor((h - usedH) / 2);
-	}
+    function createSearchInput() {
+        // Remove existing input if any
+        const existingInput = document.querySelector('.search-input-overlay');
+        if (existingInput) {
+            existingInput.remove();
+        }
 
-	// Helpers - same as index
-	function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
-	function gray(v){ const g = clamp(v|0, 0, 255); return `rgb(${g},${g},${g})`; }
-	function smoothstep(edge0, edge1, x){ const t = clamp((x - edge0) / (edge1 - edge0), 0, 1); return t * t * (3 - 2 * t); }
-	function easeOutCubic(x){ return 1 - Math.pow(1 - x, 3); }
-	function easeInOutSine(x){ return 0.5 * (1 - Math.cos(Math.PI * clamp(x,0,1))); }
-	function lerp(a, b, t){ return a + (b - a) * t; }
+        // Create input overlay
+        const inputOverlay = document.createElement('div');
+        inputOverlay.className = 'search-input-overlay';
+        inputOverlay.innerHTML = `
+            <div class="input-container">
+                <input type="text" placeholder="Digite sua pesquisa..." autofocus>
+                <div class="input-buttons">
+                    <button class="search-btn">Buscar</button>
+                </div>
+            </div>
+        `;
 
-	// Offscreen buffers: color (grayscale) + depth - same as index
-	const off = document.createElement('canvas');
-	const offCtx = off.getContext('2d');
-	const depthOff = document.createElement('canvas');
-	const depthCtx = depthOff.getContext('2d');
+        // Style the overlay
+        inputOverlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        `;
 
-	function renderSearchPage() {
-		off.width = grid.cols;
-		off.height = grid.rows;
-		depthOff.width = grid.cols;
-		depthOff.height = grid.rows;
-		const cx = off.width / 2;
-		const cy = off.height / 2;
-		
-		// Search page dimensions
-		const pageW = Math.min(off.width, off.height) * 0.9;
-		const pageH = pageW * 0.8;
-		
-		// Logo area
-		const logoW = pageW * 0.8;
-		const logoH = pageH * 0.25;
-		const logoY = cy - pageH * 0.3;
-		
-		// Search bar
-		const searchW = pageW * 0.7;
-		const searchH = pageH * 0.15;
-		const searchY = cy + pageH * 0.1;
-		
-		// Buttons
-		const buttonW = pageW * 0.15;
-		const buttonH = pageH * 0.12;
-		const buttonY = cy + pageH * 0.4;
-		
-		const image = offCtx.createImageData(off.width, off.height);
-		const data = image.data;
-		const depthImg = depthCtx.createImageData(depthOff.width, depthOff.height);
-		const depthData = depthImg.data;
-		
-		for (let y = 0; y < off.height; y++) {
-			for (let x = 0; x < off.width; x++) {
-				let g8 = 0;     // grayscale
-				let a = 0;      // alpha
-				let z = 0;      // depth 0..1 (0 = far, 1 = near)
-				
-				const dx = x - cx;
-				const dy = y - cy;
-				
-				// Logo area
-				if (Math.abs(dx) <= logoW/2 && Math.abs(dy - (logoY - cy)) <= logoH/2) {
-					// Create PIXELSEARCH text pattern
-					const logoX = dx + logoW/2;
-					const logoY_local = dy - (logoY - cy) + logoH/2;
-					
-					// Simple text pattern (PIXELSEARCH)
-					const textPattern = [
-						"██████╗ ██╗██╗  ██╗███████╗██╗     ███████╗███████╗ █████╗ ██████╗  ██████╗██╗  ██╗",
-						"██╔══██╗██║╚██╗██╔╝██╔════╝██║     ██╔════╝██╔════╝██╔══██╗██╔══██╗██╔════╝██║  ██║",
-						"██████╔╝██║ ╚███╔╝ █████╗  ██║     █████╗  ███████╗███████║██████╔╝██║     ███████║",
-						"██╔══██╗██║ ██╔██╗ ██╔══╝  ██║     ██╔══╝  ╚════██║██╔══██║██╔══██╗██║     ██╔══██║",
-						"██║  ██║██║██╔╝ ██╗███████╗███████╗███████╗███████║██║  ██║██║  ██║╚██████╗██║  ██║",
-						"╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝"
-					];
-					
-					const charWidth = logoW / textPattern[0].length;
-					const charHeight = logoH / textPattern.length;
-					const charX = Math.floor(logoX / charWidth);
-					const charY = Math.floor(logoY_local / charHeight);
-					
-					if (charY >= 0 && charY < textPattern.length && charX >= 0 && charX < textPattern[charY].length) {
-						if (textPattern[charY][charX] !== ' ') {
-							g8 = 200; a = 255; z = 0.6;
-						}
-					}
-				}
-				
-				// Search bar
-				if (Math.abs(dx) <= searchW/2 && Math.abs(dy - (searchY - cy)) <= searchH/2) {
-					const searchX = dx + searchW/2;
-					const searchY_local = dy - (searchY - cy) + searchH/2;
-					
-					// Search bar pattern
-					const barPattern = [
-						"┌──────────────────────────────────────────────────────────────┐",
-						"│                                                              │",
-						"│  Search the web...                                          │",
-						"│                                                              │",
-						"└──────────────────────────────────────────────────────────────┘"
-					];
-					
-					const charWidth = searchW / barPattern[0].length;
-					const charHeight = searchH / barPattern.length;
-					const charX = Math.floor(searchX / charWidth);
-					const charY = Math.floor(searchY_local / charHeight);
-					
-					if (charY >= 0 && charY < barPattern.length && charX >= 0 && charX < barPattern[charY].length) {
-						if (barPattern[charY][charX] !== ' ') {
-							g8 = 180; a = 255; z = 0.5;
-						}
-					}
-				}
-				
-				// Buttons
-				const button1X = dx - buttonW * 0.3;
-				const button2X = dx + buttonW * 0.3;
-				const buttonY_local = dy - (buttonY - cy);
-				
-				if ((Math.abs(button1X) <= buttonW/2 || Math.abs(button2X) <= buttonW/2) && Math.abs(buttonY_local) <= buttonH/2) {
-					const buttonPattern = [
-						"┌─────────────┐    ┌─────────────────────┐",
-						"│   Search    │    │  I'm Feeling Lucky  │",
-						"└─────────────┘    └─────────────────────┘"
-					];
-					
-					const charWidth = buttonW / 15;
-					const charHeight = buttonH / buttonPattern.length;
-					
-					let charX, charY;
-					if (Math.abs(button1X) <= buttonW/2) {
-						charX = Math.floor((button1X + buttonW/2) / charWidth);
-						charY = Math.floor((buttonY_local + buttonH/2) / charHeight);
-					} else {
-						charX = Math.floor((button2X + buttonW/2) / charWidth) + 15;
-						charY = Math.floor((buttonY_local + buttonH/2) / charHeight);
-					}
-					
-					if (charY >= 0 && charY < buttonPattern.length && charX >= 0 && charX < buttonPattern[charY].length) {
-						if (buttonPattern[charY][charX] !== ' ') {
-							g8 = 160; a = 255; z = 0.7;
-						}
-					}
-				}
-				
-				// Write color
-				const idx = (y * off.width + x) * 4;
-				data[idx] = g8; data[idx+1] = g8; data[idx+2] = g8; data[idx+3] = a;
-				// Write depth into alpha channel of depth buffer (scaled 0..255)
-				const di = idx;
-				const dz = clamp(Math.round(z * 255), 0, 255);
-				depthData[di] = dz; depthData[di+1] = dz; depthData[di+2] = dz; depthData[di+3] = a;
-			}
-		}
-		offCtx.putImageData(image, 0, 0);
-		depthCtx.putImageData(depthImg, 0, 0);
-	}
+        const inputContainer = inputOverlay.querySelector('.input-container');
+        inputContainer.style.cssText = `
+            background: #000;
+            border: 2px solid #ffffff;
+            padding: 2rem;
+            border-radius: 0;
+            max-width: 600px;
+            width: 90%;
+            text-align: center;
+        `;
 
-	// Static positioning - no 3D movement
+        const input = inputOverlay.querySelector('input');
+        input.style.cssText = `
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.2rem;
+            background: #000;
+            border: 1px solid #ffffff;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            outline: none;
+            margin-bottom: 1rem;
+        `;
 
-	// Tiles: start scattered, then assemble to static positions
-	let tiles = [];
-	function initTiles() {
-		tiles = [];
-		for (let y = 0; y < grid.rows; y++) {
-			for (let x = 0; x < grid.cols; x++) {
-				const p = offCtx.getImageData(x, y, 1, 1).data;
-				if (p[3] < 8) continue; // transparent -> skip
-				const g8 = p[0];
-				const dpx = depthCtx.getImageData(x, y, 1, 1).data;
-				const z = dpx[0] / 255; // 0..1
-				// Static 2D position
-				const targetX = grid.originX + x * grid.size;
-				const targetY = grid.originY + y * grid.size;
-				// scatter start
-				const angle = Math.random() * Math.PI * 2;
-				const radius = Math.random() * Math.max(grid.cols, grid.rows) * 2;
-				const sx = targetX + grid.size * 0.5 + Math.cos(angle) * radius * grid.size;
-				const sy = targetY + grid.size * 0.5 + Math.sin(angle) * radius * grid.size;
-				// per-tile timing for smoother assembly
-				const delayMs = Math.random() * 300; // 0..300ms
-				const durMs = 1200 + Math.random() * 1000; // 1.2s..2.2s
-				tiles.push({ x0: sx, y0: sy, x1: targetX, y1: targetY, g: g8, z, delayMs, durMs });
-			}
-		}
-	}
+        const buttons = inputOverlay.querySelector('.input-buttons');
+        buttons.style.cssText = `
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        `;
 
-	function draw(ts) {
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
-		ctx.fillStyle = '#000';
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const searchBtn = inputOverlay.querySelector('.search-btn');
+        
+        searchBtn.style.cssText = `
+            padding: 0.8rem 1.5rem;
+            background: #000;
+            border: 1px solid #ffffff;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        `;
+        
+        searchBtn.addEventListener('mouseenter', function() {
+            this.style.background = '#ffffff';
+            this.style.color = '#000000';
+        });
+        
+        searchBtn.addEventListener('mouseleave', function() {
+            this.style.background = '#000000';
+            this.style.color = '#ffffff';
+        });
 
-		let allAssembled = true;
-		for (const tile of tiles) {
-			const localT = clamp((ts - startAtMs - tile.delayMs) / tile.durMs, 0, 1);
-			const eased = easeInOutSine(localT);
-			if (localT < 1) allAssembled = false;
+        // Add event listeners
+        searchBtn.addEventListener('click', function() {
+            const query = input.value.trim();
+            if (query) {
+                performSearch(query);
+                inputOverlay.remove();
+            }
+        });
 
-			// Simple 2D interpolation from scatter to target position
-			const px = lerp(tile.x0, tile.x1, eased);
-			const py = lerp(tile.y0, tile.y1, eased);
 
-			// Static shading based on depth
-			const shade = 0.4 + 0.6 * tile.z;
-			ctx.fillStyle = gray(tile.g * shade);
-			const s = grid.size * FILL;
-			const ox = (grid.size - s) * 0.5;
-			const oy = (grid.size - s) * 0.5;
-			ctx.fillRect(px + ox, py + oy, s, s);
-		}
-		// Glitch only after assembled to keep animation fluid
-		if (allAssembled && Math.random() < 0.015) {
-			const bands = 2;
-			for (let i = 0; i < bands; i++) {
-				const y = Math.random() * (canvas.height - 4) | 0;
-				const h = (Math.random() * 10 + 2) | 0;
-				const dx = ((Math.random() - 0.5) * 10) | 0;
-				ctx.drawImage(canvas, 0, y, canvas.width, h, dx, y, canvas.width, h);
-			}
-		}
-		requestAnimationFrame(draw);
-	}
+        // Close on escape or click outside
+        inputOverlay.addEventListener('click', function(e) {
+            if (e.target === inputOverlay) {
+                inputOverlay.remove();
+            }
+        });
 
-	let startAtMs = 0;
-	function rebuild() {
-		computeGrid();
-		renderSearchPage();
-		initTiles();
-		startAtMs = performance.now();
-	}
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                inputOverlay.remove();
+            }
+        });
 
-	rebuild();
-	requestAnimationFrame(draw);
+        document.body.appendChild(inputOverlay);
+        input.focus();
+    }
+
+    function performSearch(query = '') {
+        if (!query) {
+            query = prompt('Digite sua pesquisa:');
+        }
+        if (query) {
+            // Simulate search - in a real implementation, this would redirect to search results
+            console.log('Searching for:', query);
+            alert(`Buscando por: "${query}"\n\n(Esta é uma demonstração - em uma implementação real, isso redirecionaria para os resultados de busca)`);
+        }
+    }
+
+    function addGlitchEffects() {
+        const logo = document.querySelector('.logo-ascii pre');
+        if (logo) {
+            // Random glitch effect
+            setInterval(() => {
+                if (Math.random() < 0.1) { // 10% chance every interval
+                    logo.style.animation = 'none';
+                    setTimeout(() => {
+                        logo.style.animation = 'glitch 0.3s ease-in-out';
+                    }, 10);
+                }
+            }, 2000);
+        }
+    }
+
+    function animateLogo() {
+        const logo = document.querySelector('.logo-ascii pre');
+        if (logo) {
+            // Add a subtle pulsing effect
+            logo.style.animation = 'pulse 3s ease-in-out infinite';
+        }
+    }
+
+    // Add CSS animations
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        
+        .search-input-overlay {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initASCIIInterface);
+    } else {
+        initASCIIInterface();
+    }
+
+    // Add keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Cmd + K to focus search
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            createSearchInput();
+        }
+        
+        // Enter key on search bar
+        if (e.key === 'Enter' && e.target.classList.contains('search-bar-ascii')) {
+            createSearchInput();
+        }
+    });
+
+    // Add hover effects for better UX
+    const searchBar = document.querySelector('.search-bar-ascii');
+    if (searchBar) {
+        searchBar.title = 'Clique para pesquisar (Ctrl+K)';
+    }
+
+    const buttons = document.querySelector('.buttons-ascii');
+    if (buttons) {
+        buttons.title = 'Clique nos botões para pesquisar';
+    }
+
 })();
