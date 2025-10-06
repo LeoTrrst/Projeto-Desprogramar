@@ -167,7 +167,11 @@
     function scrollToBottom() {
         const terminalBody = document.querySelector('.terminal-body');
         if (terminalBody) {
-            terminalBody.scrollTop = terminalBody.scrollHeight;
+            // Smooth scroll to bottom
+            terminalBody.scrollTo({
+                top: terminalBody.scrollHeight,
+                behavior: 'smooth'
+            });
         }
     }
 
@@ -191,7 +195,8 @@
   clear          - Limpar o terminal
   help           - Mostrar esta ajuda
   about          - Informações sobre o Agent(e)
-  version        - Versão do sistema`;
+  version        - Versão do sistema
+  whoami         - Identidade do usuário`;
 
             case 'clear':
                 clearTerminal();
@@ -204,6 +209,12 @@ Desenvolvido com tecnologia ASCII art`;
 
             case 'version':
                 return 'Agent(e) Terminal v1.0.0 - Linux Terminal Emulator';
+
+            case 'whoami':
+                return `Você é o produto beta daquilo que procura.
+Identidade: usuário-consumidor #${Math.floor(Math.random() * 9999)}
+Status: monitorado ativamente
+Última atualização: ${new Date().toLocaleString('pt-BR')}`;
 
             case 'ls':
                 return `agent-search.js
@@ -237,17 +248,17 @@ LICENSE`;
             return;
         }
         
-        // Simulate search - in a real implementation, this would redirect to search results
-        console.log('Searching for:', query);
-        
-        // Show search result (in a real implementation, this would redirect to search results)
-        setTimeout(() => {
+            // Simulate search - in a real implementation, this would redirect to search results
+            console.log('Searching for:', query);
+            
+            // Show search result (in a real implementation, this would redirect to search results)
+            setTimeout(() => {
             addOutputLine(`Resultados da busca por "${query}":`);
             addOutputLine(`1. https://example.com/result1 - Resultado relevante 1`);
             addOutputLine(`2. https://example.com/result2 - Resultado relevante 2`);
             addOutputLine(`3. https://example.com/result3 - Resultado relevante 3`);
             addOutputLine(`(Esta é uma demonstração - em uma implementação real, isso redirecionaria para os resultados de busca)`);
-        }, 1000);
+            }, 1000);
     }
 
     function addGlitchEffects() {
@@ -538,5 +549,156 @@ LICENSE`;
     } else {
         initMonitoringLog();
     }
+
+    // Configuration Panel System
+    function initConfigPanel() {
+        // Toggle switches
+        const toggles = document.querySelectorAll('.toggle');
+        toggles.forEach(toggle => {
+            toggle.addEventListener('click', function() {
+                const configType = this.getAttribute('data-config');
+                
+                if (configType === 'rastros' || configType === 'hesitacao' || configType === 'identidade') {
+                    // These toggles cannot be turned off
+                    showConfigWarning('Essa opção não pode ser alterada. Você já consentiu antes de chegar aqui.');
+                    return;
+                }
+                
+                this.classList.toggle('active');
+                const text = this.querySelector('.toggle-text');
+                text.textContent = this.classList.contains('active') ? 'Ativo' : 'Inativo';
+                
+                // Show config sync message
+                showConfigLog(`config.sync | preferências ignoradas | controle restaurado`);
+            });
+        });
+
+        // Sliders
+        const sliders = document.querySelectorAll('.slider');
+        sliders.forEach(slider => {
+            slider.addEventListener('input', function() {
+                const value = this.value;
+                const valueSpan = this.parentElement.querySelector('.slider-value');
+                valueSpan.textContent = value + '%';
+                
+                // Show config sync message
+                showConfigLog(`config.sync | ajuste registrado | comportamento monitorado`);
+            });
+        });
+
+        // Radio buttons
+        const radioGroups = document.querySelectorAll('.radio-group');
+        radioGroups.forEach(group => {
+            const radios = group.querySelectorAll('input[type="radio"]');
+            radios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    showConfigLog(`config.sync | seleção processada | perfil atualizado`);
+                });
+            });
+        });
+
+        // Select dropdowns
+        const selects = document.querySelectorAll('.config-select');
+        selects.forEach(select => {
+            select.addEventListener('change', function() {
+                showConfigLog(`config.sync | filtro aplicado | realidade ajustada`);
+            });
+        });
+
+        // Track time spent reading config
+        let readingTime = 0;
+        const readingInterval = setInterval(() => {
+            readingTime += 1;
+            if (readingTime === 10) {
+                showConfigWarning('Tempo de leitura acima da média. Curiosidade registrada.');
+            }
+        }, 1000);
+
+        // Clear interval when popup closes
+        const configPopup = document.getElementById('popup-configuracoes');
+        if (configPopup) {
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                        if (!configPopup.classList.contains('show')) {
+                            clearInterval(readingInterval);
+                        }
+                    }
+                });
+            });
+            observer.observe(configPopup, { attributes: true });
+        }
+    }
+
+    // Global functions for config panel
+    window.gerarRelatorio = function() {
+        const warning = document.getElementById('configWarning');
+        if (warning) {
+            warning.textContent = 'Relatório gerado. Personalidade vendida com sucesso.';
+            warning.style.color = '#ff6666';
+            
+            setTimeout(() => {
+                warning.textContent = '';
+            }, 3000);
+        }
+        
+        showConfigLog(`report.generator | dados pessoais coletados | monetização ativa`);
+    };
+
+    window.modoAvancado = function() {
+        const terminalInput = document.getElementById('terminalInput');
+        if (terminalInput) {
+            terminalInput.focus();
+            terminalInput.value = '/whoami';
+            updateCursorPosition();
+            
+            // Execute the command
+            setTimeout(() => {
+                executeCommand('/whoami');
+            }, 100);
+        }
+        
+        showConfigLog(`advanced.mode | acesso negado | privilégios insuficientes`);
+    };
+
+    function showConfigWarning(message) {
+        const warning = document.getElementById('configWarning');
+        if (warning) {
+            warning.textContent = message;
+            warning.style.color = '#ff6666';
+            
+            setTimeout(() => {
+                warning.textContent = '';
+            }, 3000);
+        }
+    }
+
+    function showConfigLog(message) {
+        // Add to monitoring log
+        const logModule = document.getElementById('logModule');
+        const logMessage = document.getElementById('logMessage');
+        
+        if (logModule && logMessage) {
+            const parts = message.split(' | ');
+            if (parts.length >= 3) {
+                logModule.textContent = parts[0];
+                logMessage.textContent = parts.slice(1).join(' | ');
+            }
+        }
+        
+        // Flash effect
+        document.body.style.background = '#0a0a0a';
+        setTimeout(() => {
+            document.body.style.background = '#000000';
+        }, 100);
+    }
+
+    // Initialize config panel when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initConfigPanel);
+    } else {
+        initConfigPanel();
+    }
+
 
 })();

@@ -104,8 +104,29 @@ body {
 .terminal-body {
     padding: 1rem;
     background: #0c0c0c;
-    min-height: 300px;
+    height: 300px;
     font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #333333 #0c0c0c;
+}
+
+.terminal-body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.terminal-body::-webkit-scrollbar-track {
+    background: #0c0c0c;
+}
+
+.terminal-body::-webkit-scrollbar-thumb {
+    background: #333333;
+    border-radius: 4px;
+}
+
+.terminal-body::-webkit-scrollbar-thumb:hover {
+    background: #555555;
 }
 
 /* Terminal Output */
@@ -366,6 +387,298 @@ body {
 
 .popup-content p:last-child {
     margin-bottom: 0;
+}
+
+/* Configuration Panel Styles */
+.config-sections {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.config-section {
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #333333;
+    padding-bottom: 1rem;
+}
+
+.config-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.config-section h4 {
+    color: #ffffff;
+    font-size: 0.9rem;
+    font-weight: bold;
+    margin: 0 0 0.8rem 0;
+    text-shadow: 0 0 3px #ffffff;
+    font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+}
+
+.config-item {
+    margin-bottom: 1rem;
+}
+
+.config-item label {
+    display: block;
+    color: #cccccc;
+    font-size: 0.8rem;
+    margin-bottom: 0.3rem;
+    font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+}
+
+.config-item small {
+    display: block;
+    color: #888888;
+    font-size: 0.7rem;
+    font-style: italic;
+    margin-top: 0.3rem;
+    line-height: 1.3;
+}
+
+/* Toggle Switch */
+.toggle {
+    display: inline-block;
+    width: 60px;
+    height: 24px;
+    background: #333333;
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid #666666;
+}
+
+.toggle.active {
+    background: #00ff00;
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+.toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    background: #ffffff;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.toggle.active::after {
+    transform: translateX(36px);
+}
+
+.toggle-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.6rem;
+    color: #000000;
+    font-weight: bold;
+    font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+    pointer-events: none;
+}
+
+.toggle:not(.active) .toggle-text {
+    color: #cccccc;
+}
+
+/* Radio Groups */
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.radio-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.7rem;
+    margin-bottom: 0;
+}
+
+.radio-group input[type="radio"] {
+    accent-color: #00ff00;
+}
+
+/* Slider */
+.slider-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.slider {
+    flex: 1;
+    height: 4px;
+    background: #333333;
+    outline: none;
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #00ff00;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+}
+
+.slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: #00ff00;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+}
+
+.slider-value {
+    color: #00ff00;
+    font-size: 0.7rem;
+    font-weight: bold;
+    min-width: 35px;
+    text-align: right;
+    font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+}
+
+/* Select */
+.config-select {
+    background: #0c0c0c;
+    border: 1px solid #333333;
+    color: #ffffff;
+    padding: 0.3rem 0.5rem;
+    border-radius: 4px;
+    font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+}
+
+.config-select:focus {
+    outline: none;
+    border-color: #00ff00;
+    box-shadow: 0 0 5px rgba(0, 255, 0, 0.3);
+}
+
+/* Buttons */
+.config-button {
+    background: #0c0c0c;
+    border: 1px solid #333333;
+    color: #ffffff;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 0.5rem;
+}
+
+.config-button:hover {
+    border-color: #00ff00;
+    color: #00ff00;
+    box-shadow: 0 0 5px rgba(0, 255, 0, 0.3);
+}
+
+.config-button.advanced {
+    background: #1a1a1a;
+    border-color: #666666;
+    color: #ffaa00;
+}
+
+.config-button.advanced:hover {
+    border-color: #ffaa00;
+    box-shadow: 0 0 5px rgba(255, 170, 0, 0.3);
+}
+
+/* History Display */
+.history-display {
+    background: #111111;
+    border: 1px solid #333333;
+    border-radius: 4px;
+    padding: 0.5rem;
+    font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+    font-size: 0.7rem;
+}
+
+.history-display div {
+    color: #888888;
+    margin-bottom: 0.2rem;
+}
+
+.history-display div:last-child {
+    margin-bottom: 0;
+}
+
+/* Config Footer */
+.config-footer {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #333333;
+    text-align: center;
+}
+
+.config-warning {
+    margin-top: 0.5rem;
+    font-size: 0.7rem;
+    color: #ff6666;
+    font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+    min-height: 1rem;
+}
+
+/* Commands List */
+.commands-list {
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.command-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #222222;
+    font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+}
+
+.command-item:last-child {
+    border-bottom: none;
+}
+
+.command-name {
+    color: #00ff00;
+    font-weight: bold;
+    font-size: 0.8rem;
+}
+
+.command-desc {
+    color: #cccccc;
+    font-size: 0.7rem;
+    font-style: italic;
+}
+
+.commands-footer {
+    margin-top: 1rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid #333333;
+    text-align: center;
+}
+
+.commands-footer small {
+    color: #888888;
+    font-size: 0.7rem;
+    font-style: italic;
 }
 
 /* Floating Commands */
@@ -633,7 +946,7 @@ body {
     
     .terminal-body {
         padding: 0.8rem;
-        min-height: 250px;
+        height: 250px;
     }
     
     .terminal-input-line {
@@ -652,6 +965,18 @@ body {
     
     .output-line {
         font-size: 0.8rem;
+    }
+    
+    .commands-list {
+        max-height: 250px;
+    }
+    
+    .command-name {
+        font-size: 0.7rem;
+    }
+    
+    .command-desc {
+        font-size: 0.6rem;
     }
     
     .footer-links {
@@ -703,7 +1028,7 @@ body {
     
     .terminal-body {
         padding: 0.6rem;
-        min-height: 200px;
+        height: 200px;
     }
     
     .terminal-header {
@@ -758,5 +1083,17 @@ body {
         font-size: 0.6rem;
         padding: 0.5rem 0.6rem;
         max-width: 200px;
+    }
+    
+    .commands-list {
+        max-height: 200px;
+    }
+    
+    .command-name {
+        font-size: 0.6rem;
+    }
+    
+    .command-desc {
+        font-size: 0.5rem;
     }
 }

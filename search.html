@@ -56,6 +56,7 @@
             <div class="footer-links">
                 <span class="popup-trigger" data-popup="sobre">Sobre</span> • 
                 <span class="popup-trigger" data-popup="manifesto">Manifesto</span> • 
+                <span class="popup-trigger" data-popup="comandos">Comandos</span> • 
                 <span class="popup-trigger" data-popup="configuracoes">Configurações</span>
             </div>
             
@@ -79,12 +80,151 @@
                 </div>
             </div>
             
+            <div class="popup" id="popup-comandos">
+                <div class="popup-content">
+                    <h3>Comandos Disponíveis</h3>
+                    <div class="commands-list">
+                        <div class="command-item">
+                            <span class="command-name">search &lt;termo&gt;</span>
+                            <span class="command-desc">Pesquisar na web</span>
+                        </div>
+                        <div class="command-item">
+                            <span class="command-name">help</span>
+                            <span class="command-desc">Mostrar esta ajuda</span>
+                        </div>
+                        <div class="command-item">
+                            <span class="command-name">clear</span>
+                            <span class="command-desc">Limpar o terminal</span>
+                        </div>
+                        <div class="command-item">
+                            <span class="command-name">about</span>
+                            <span class="command-desc">Informações sobre o Agent(e)</span>
+                        </div>
+                        <div class="command-item">
+                            <span class="command-name">version</span>
+                            <span class="command-desc">Versão do sistema</span>
+                        </div>
+                        <div class="command-item">
+                            <span class="command-name">whoami</span>
+                            <span class="command-desc">Identidade do usuário</span>
+                        </div>
+                        <div class="command-item">
+                            <span class="command-name">ls</span>
+                            <span class="command-desc">Listar arquivos</span>
+                        </div>
+                        <div class="command-item">
+                            <span class="command-name">pwd</span>
+                            <span class="command-desc">Diretório atual</span>
+                        </div>
+                        <div class="command-item">
+                            <span class="command-name">date</span>
+                            <span class="command-desc">Data e hora atual</span>
+                        </div>
+                    </div>
+                    <div class="commands-footer">
+                        <small>Digite os comandos diretamente no terminal acima</small>
+                    </div>
+                </div>
+            </div>
+            
             <div class="popup" id="popup-configuracoes">
                 <div class="popup-content">
-                    <h3>Configurações</h3>
-                    <p>Personalize sua experiência de busca.</p>
-                    <p>Configure filtros e preferências.</p>
-                    <p>Gerencie suas configurações de privacidade.</p>
+                    <h3>Painel de Controle</h3>
+                    <div class="config-sections">
+                        <div class="config-section">
+                            <h4>🔒 Privacidade</h4>
+                            <div class="config-item">
+                                <label>Coleta de rastros</label>
+                                <div class="toggle active" data-config="rastros">
+                                    <span class="toggle-text">Ativado</span>
+                                </div>
+                                <small>Desative para sentir anonimato por aproximadamente 0,3 segundos.</small>
+                            </div>
+                            <div class="config-item">
+                                <label>Nível de transparência do usuário</label>
+                                <div class="radio-group">
+                                    <label><input type="radio" name="transparencia" value="0"> 0% (indetectável)</label>
+                                    <label><input type="radio" name="transparencia" value="50"> 50% (aceitável)</label>
+                                    <label><input type="radio" name="transparencia" value="100" checked> 100% (recomendado)</label>
+                                </div>
+                                <small>Maior transparência melhora a precisão do nosso olhar.</small>
+                            </div>
+                            <button class="config-button" onclick="gerarRelatorio()">Gerar relatório de si</button>
+                        </div>
+                        
+                        <div class="config-section">
+                            <h4>🎭 Personalização</h4>
+                            <div class="config-item">
+                                <label>Tendência comportamental</label>
+                                <div class="slider-container">
+                                    <input type="range" min="0" max="100" value="75" class="slider" id="comportamento">
+                                    <span class="slider-value">75%</span>
+                                </div>
+                                <small>O algoritmo prefere quando você é consistente.</small>
+                            </div>
+                            <div class="config-item">
+                                <label>Filtro de realidade</label>
+                                <select class="config-select">
+                                    <option>Normal</option>
+                                    <option selected>Curado</option>
+                                    <option>Publicitário</option>
+                                    <option>Algorítmico</option>
+                                </select>
+                                <small>A verdade é apenas uma questão de curadoria.</small>
+                            </div>
+                            <div class="config-item">
+                                <label>Tom emocional das respostas</label>
+                                <div class="radio-group">
+                                    <label><input type="radio" name="tom" value="neutro"> Neutro</label>
+                                    <label><input type="radio" name="tom" value="ansioso" checked> Levemente ansioso</label>
+                                    <label><input type="radio" name="tom" value="comercial"> Comercial</label>
+                                    <label><input type="radio" name="tom" value="observador"> Observador silencioso</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="config-section">
+                            <h4>🧍 Sincronização emocional</h4>
+                            <div class="config-item">
+                                <label>Coletar sinais de hesitação</label>
+                                <div class="toggle active" data-config="hesitacao">
+                                    <span class="toggle-text">Ativo</span>
+                                </div>
+                                <small>As pausas entre suas palavras dizem mais do que elas.</small>
+                            </div>
+                            <div class="config-item">
+                                <label>Ajustar empatia automatizada</label>
+                                <div class="slider-container">
+                                    <input type="range" min="0" max="100" value="60" class="slider" id="empatia">
+                                    <span class="slider-value">60%</span>
+                                </div>
+                                <small>Defina o quanto deseja ser compreendido sem precisar dizer nada.</small>
+                            </div>
+                        </div>
+                        
+                        <div class="config-section">
+                            <h4>⚙️ Sistema</h4>
+                            <div class="config-item">
+                                <label>Atualizações automáticas de identidade</label>
+                                <div class="toggle active" data-config="identidade">
+                                    <span class="toggle-text">Sempre</span>
+                                </div>
+                                <small>Sua versão mais recente está sempre em desenvolvimento.</small>
+                            </div>
+                            <div class="config-item">
+                                <label>Histórico de buscas internas</label>
+                                <div class="history-display">
+                                    <div>Último pensamento digitado: "..."</div>
+                                    <div>Última intenção reprimida: "abrir configurações"</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="config-footer">
+                        <button class="config-button advanced" onclick="modoAvancado()">Modo Avançado</button>
+                        <div class="config-warning" id="configWarning"></div>
+                    </div>
                 </div>
             </div>
         </div>
