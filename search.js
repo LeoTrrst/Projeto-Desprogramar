@@ -2,21 +2,25 @@
 (function(){
     // Initialize ASCII art interface
     function initASCIIInterface() {
-        // Add interactive functionality to search bar
-        const searchBar = document.querySelector('.search-bar-ascii pre');
-        if (searchBar) {
-            searchBar.addEventListener('click', function() {
-                // Create a real input field overlay
-                createSearchInput();
+        // Get the search input and button elements
+        const searchInput = document.getElementById('searchInput');
+        const searchButton = document.getElementById('searchButton');
+
+        // Add functionality to search button
+        if (searchButton) {
+            searchButton.addEventListener('click', function() {
+                const query = searchInput ? searchInput.value.trim() : '';
+                performSearch(query);
             });
         }
 
-        // Add functionality to buttons
-        const buttons = document.querySelector('.buttons-ascii pre');
-        if (buttons) {
-            buttons.addEventListener('click', function(e) {
-                // Single button - Search
-                performSearch();
+        // Add functionality to search input (Enter key)
+        if (searchInput) {
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    const query = this.value.trim();
+                    performSearch(query);
+                }
             });
         }
 
@@ -27,127 +31,38 @@
         animateLogo();
     }
 
-    function createSearchInput() {
-        // Remove existing input if any
-        const existingInput = document.querySelector('.search-input-overlay');
-        if (existingInput) {
-            existingInput.remove();
-        }
-
-        // Create input overlay
-        const inputOverlay = document.createElement('div');
-        inputOverlay.className = 'search-input-overlay';
-        inputOverlay.innerHTML = `
-            <div class="input-container">
-                <input type="text" placeholder="Digite sua pesquisa..." autofocus>
-                <div class="input-buttons">
-                    <button class="search-btn">Buscar</button>
-                </div>
-            </div>
-        `;
-
-        // Style the overlay
-        inputOverlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        `;
-
-        const inputContainer = inputOverlay.querySelector('.input-container');
-        inputContainer.style.cssText = `
-            background: #000;
-            border: 2px solid #ffffff;
-            padding: 2rem;
-            border-radius: 0;
-            max-width: 600px;
-            width: 90%;
-            text-align: center;
-        `;
-
-        const input = inputOverlay.querySelector('input');
-        input.style.cssText = `
-            width: 100%;
-            padding: 1rem;
-            font-size: 1.2rem;
-            background: #000;
-            border: 1px solid #ffffff;
-            color: #ffffff;
-            font-family: 'Courier New', monospace;
-            outline: none;
-            margin-bottom: 1rem;
-        `;
-
-        const buttons = inputOverlay.querySelector('.input-buttons');
-        buttons.style.cssText = `
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-        `;
-
-        const searchBtn = inputOverlay.querySelector('.search-btn');
-        
-        searchBtn.style.cssText = `
-            padding: 0.8rem 1.5rem;
-            background: #000;
-            border: 1px solid #ffffff;
-            color: #ffffff;
-            font-family: 'Courier New', monospace;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        `;
-        
-        searchBtn.addEventListener('mouseenter', function() {
-            this.style.background = '#ffffff';
-            this.style.color = '#000000';
-        });
-        
-        searchBtn.addEventListener('mouseleave', function() {
-            this.style.background = '#000000';
-            this.style.color = '#ffffff';
-        });
-
-        // Add event listeners
-        searchBtn.addEventListener('click', function() {
-            const query = input.value.trim();
-            if (query) {
-                performSearch(query);
-                inputOverlay.remove();
-            }
-        });
-
-
-        // Close on escape or click outside
-        inputOverlay.addEventListener('click', function(e) {
-            if (e.target === inputOverlay) {
-                inputOverlay.remove();
-            }
-        });
-
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                inputOverlay.remove();
-            }
-        });
-
-        document.body.appendChild(inputOverlay);
-        input.focus();
-    }
-
     function performSearch(query = '') {
         if (!query) {
-            query = prompt('Digite sua pesquisa:');
+            // If no query provided, focus the input field
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.focus();
+            }
+            return;
         }
+        
         if (query) {
             // Simulate search - in a real implementation, this would redirect to search results
             console.log('Searching for:', query);
-            alert(`Buscando por: "${query}"\n\n(Esta é uma demonstração - em uma implementação real, isso redirecionaria para os resultados de busca)`);
+            
+            // Add a visual feedback effect
+            const searchButton = document.getElementById('searchButton');
+            if (searchButton) {
+                searchButton.style.background = '#00ff00';
+                searchButton.style.color = '#000000';
+                searchButton.textContent = 'Buscando...';
+                
+                setTimeout(() => {
+                    searchButton.style.background = '#000000';
+                    searchButton.style.color = '#ffffff';
+                    searchButton.textContent = 'Buscar';
+                }, 2000);
+            }
+            
+            // Show search result (in a real implementation, this would redirect to search results)
+            setTimeout(() => {
+                alert(`Buscando por: "${query}"\n\n(Esta é uma demonstração - em uma implementação real, isso redirecionaria para os resultados de busca)`);
+            }, 1000);
         }
     }
 
@@ -205,24 +120,22 @@
         // Ctrl/Cmd + K to focus search
         if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
             e.preventDefault();
-            createSearchInput();
-        }
-        
-        // Enter key on search bar
-        if (e.key === 'Enter' && e.target.classList.contains('search-bar-ascii')) {
-            createSearchInput();
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.focus();
+            }
         }
     });
 
     // Add hover effects for better UX
-    const searchBar = document.querySelector('.search-bar-ascii');
-    if (searchBar) {
-        searchBar.title = 'Clique para pesquisar (Ctrl+K)';
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.title = 'Digite sua pesquisa (Ctrl+K para focar)';
     }
 
-    const buttons = document.querySelector('.buttons-ascii');
-    if (buttons) {
-        buttons.title = 'Clique nos botões para pesquisar';
+    const searchButton = document.getElementById('searchButton');
+    if (searchButton) {
+        searchButton.title = 'Clique para pesquisar';
     }
 
 })();

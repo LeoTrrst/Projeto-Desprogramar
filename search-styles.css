@@ -50,6 +50,74 @@ body {
     max-width: 800px;
 }
 
+/* Search Container */
+.search-container {
+    position: relative;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+/* Search Input Wrapper */
+.search-input-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+}
+
+/* Search Input */
+.search-input {
+    width: 100%;
+    padding: 1rem 1.5rem;
+    font-size: 1.1rem;
+    background: #000000;
+    border: 2px solid #ffffff;
+    color: #ffffff;
+    font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+    outline: none;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+.search-input:focus {
+    border-color: #ffffff;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+    background: #111111;
+}
+
+.search-input::placeholder {
+    color: #888888;
+    font-style: italic;
+}
+
+/* Search Button */
+.search-button {
+    padding: 1rem 2rem;
+    font-size: 1rem;
+    background: #000000;
+    border: 2px solid #ffffff;
+    color: #ffffff;
+    font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.search-button:hover {
+    background: #ffffff;
+    color: #000000;
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+}
+
+.search-button:active {
+    transform: scale(0.95);
+}
+
 /* Search Bar ASCII */
 .search-bar-ascii {
     width: 100%;
@@ -380,12 +448,14 @@ body {
         font-size: 0.5rem;
     }
     
-    .search-bar-ascii pre {
-        font-size: 0.8rem;
+    .search-input {
+        font-size: 1rem;
+        padding: 0.8rem 1rem;
     }
     
-    .buttons-ascii pre {
-        font-size: 0.7rem;
+    .search-button {
+        font-size: 0.9rem;
+        padding: 0.8rem 1.5rem;
     }
     
     .footer-links {
@@ -402,11 +472,13 @@ body {
         font-size: 0.4rem;
     }
     
-    .search-bar-ascii pre {
-        font-size: 0.7rem;
+    .search-input {
+        font-size: 0.9rem;
+        padding: 0.7rem 0.8rem;
     }
     
-    .buttons-ascii pre {
-        font-size: 0.6rem;
+    .search-button {
+        font-size: 0.8rem;
+        padding: 0.7rem 1.2rem;
     }
 }
