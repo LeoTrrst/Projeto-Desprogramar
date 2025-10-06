@@ -19,20 +19,83 @@
 ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   [╚══════╝]</pre>
         </div>
         
-        <div class="search-section">
-            <div class="search-container">
-                <div class="search-input-wrapper">
-                    <input type="text" id="searchInput" placeholder="Digite sua pesquisa..." class="search-input">
+        <div class="terminal-section">
+            <div class="terminal-container">
+                <div class="terminal-header">
+                    <div class="terminal-controls">
+                        <span class="control close"></span>
+                        <span class="control minimize"></span>
+                        <span class="control maximize"></span>
+                    </div>
+                    <div class="terminal-title">terminal@agent:~$</div>
                 </div>
-                <button id="searchButton" class="search-button">Buscar</button>
+                <div class="terminal-body">
+                    <div class="terminal-output">
+                        <div class="output-line">Agent(e) Search Engine v1.0.0</div>
+                        <div class="output-line"></div>
+                    </div>
+                    <div class="terminal-input-line">
+                        <span class="prompt">user@agent:~$</span>
+                        <div class="input-container">
+                            <input type="text" id="terminalInput" class="terminal-input" autocomplete="off" spellcheck="false">
+                            <span class="cursor"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         
         <div class="footer-ascii">
-            <pre>Brasil</pre>
-            <div class="footer-links">
-                <span>Sobre</span> • <span>Publicidade</span> • <span>Negócios</span> • <span>Como funciona</span> • <span>Privacidade</span> • <span>Termos</span> • <span>Configurações</span>
+            <div class="monitoring-log">
+                <span class="log-time" id="logTime">14:03:12</span>
+                <span class="log-separator">|</span>
+                <span class="log-module" id="logModule">tracking.module</span>
+                <span class="log-separator">|</span>
+                <span class="log-message" id="logMessage">nova intenção detectada: "dúvida disfarçada de busca"</span>
             </div>
+            <div class="footer-links">
+                <span class="popup-trigger" data-popup="sobre">Sobre</span> • 
+                <span class="popup-trigger" data-popup="manifesto">Manifesto</span> • 
+                <span class="popup-trigger" data-popup="configuracoes">Configurações</span>
+            </div>
+            
+            <!-- Popups -->
+            <div class="popup" id="popup-sobre">
+                <div class="popup-content">
+                    <h3>agent(e)</h3>
+                    <p>O motor que te encontra antes mesmo de você procurar.</p>
+                    <p>Buscamos. Armazenamos. Aprendemos.</p>
+                    <p>Você é o dado mais valioso.</p>
+                </div>
+            </div>
+            
+            <div class="popup" id="popup-manifesto">
+                <div class="popup-content">
+                    <h3>Manifesto</h3>
+                    <p>Somos um espelho dos rastros.</p>
+                    <p>Cada clique é um traço daquilo que você nunca disse.</p>
+                    <p>Não vendemos informação — nós a curamos.</p>
+                    <p>O algoritmo é apenas a forma que o olhar encontrou para não piscar.</p>
+                </div>
+            </div>
+            
+            <div class="popup" id="popup-configuracoes">
+                <div class="popup-content">
+                    <h3>Configurações</h3>
+                    <p>Personalize sua experiência de busca.</p>
+                    <p>Configure filtros e preferências.</p>
+                    <p>Gerencie suas configurações de privacidade.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Floating Terminal Commands -->
+    <div id="floatingCommands" class="floating-commands">
+        <div class="floating-command">
+            <span class="floating-prompt">agent@system:~$</span>
+            <span class="floating-text"></span>
+            <span class="floating-cursor">_</span>
         </div>
     </div>
     
