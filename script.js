@@ -1,435 +1,1085 @@
-// Pixel Eye — 8-bit grayscale human eye with eyelids (glitchcore slices + static layered 3D)
+// Agent(e) Search Engine - Terminal Interface
 (function(){
-	const canvas = document.getElementById('scene');
-	if (!canvas) return;
-	const ctx = canvas.getContext('2d');
+    let commandHistory = [];
+    let historyIndex = -1;
+    let currentCommand = '';
 
-	const DPR = Math.min(window.devicePixelRatio || 1, 2);
-	function fitCanvas() {
-		const boxW = canvas.clientWidth || 1200;
-		const boxH = canvas.clientHeight || 800;
-		canvas.width = Math.round(boxW * DPR);
-		canvas.height = Math.round(boxH * DPR);
-		ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-	}
-	fitCanvas();
-	window.addEventListener('resize', () => { fitCanvas(); rebuild(); });
+    // Initialize terminal interface
+    function initTerminalInterface() {
+        const terminalInput = document.getElementById('terminalInput');
+        const terminalOutput = document.querySelector('.terminal-output');
+        const cursor = document.querySelector('.cursor');
 
-	// Grid config - high density for detailed eye
-	const grid = { cols: 160, rows: 120, size: 0, originX: 0, originY: 0 };
-	const FILL = 0.75; // fraction of cell occupied by tile (gutter creates spacing)
+        if (!terminalInput || !terminalOutput || !cursor) return;
 
-	function computeGrid() {
-		const w = canvas.width / DPR;
-		const h = canvas.height / DPR;
-		grid.size = Math.floor(Math.min(w / grid.cols, h / grid.rows));
-		const usedW = grid.size * grid.cols;
-		const usedH = grid.size * grid.rows;
-		grid.originX = Math.floor((w - usedW) / 2);
-		grid.originY = Math.floor((h - usedH) / 2);
-	}
+        // Create entrance transition
+        createEntranceTransition();
 
-	// Helpers
-	function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
-	function gray(v){ const g = clamp(v|0, 0, 255); return `rgb(${g},${g},${g})`; }
-	function smoothstep(edge0, edge1, x){ const t = clamp((x - edge0) / (edge1 - edge0), 0, 1); return t * t * (3 - 2 * t); }
-	function easeOutCubic(x){ return 1 - Math.pow(1 - x, 3); }
-	function easeInOutSine(x){ return 0.5 * (1 - Math.cos(Math.PI * clamp(x,0,1))); }
-	function lerp(a, b, t){ return a + (b - a) * t; }
+        // Focus on terminal input
+        terminalInput.focus();
 
-	// Offscreen buffers: color (grayscale) + depth
-	const off = document.createElement('canvas');
-	const offCtx = off.getContext('2d');
-	const depthOff = document.createElement('canvas');
-	const depthCtx = depthOff.getContext('2d');
-	// Pupil mask buffer (alpha marks pupil pixels)
-	const pupilOff = document.createElement('canvas');
-	const pupilCtx = pupilOff.getContext('2d');
+        // Handle input events
+        terminalInput.addEventListener('keydown', handleKeyDown);
+        terminalInput.addEventListener('input', handleInput);
+        terminalInput.addEventListener('focus', handleFocus);
+        terminalInput.addEventListener('blur', handleBlur);
 
-	function renderTargetEye() {
-		off.width = grid.cols;
-		off.height = grid.rows;
-		depthOff.width = grid.cols;
-		depthOff.height = grid.rows;
-		pupilOff.width = grid.cols;
-		pupilOff.height = grid.rows;
-		const cx = off.width / 2;
-		const cy = off.height / 2;
-		
-		// Eye dimensions - larger and open
-		const eyeW = Math.min(off.width, off.height) * 0.92;
-		const eyeH = eyeW * 0.52;
-		const irisR = eyeW * 0.2;
-		const pupilR = irisR * 0.3;
-		
-		// Eyelid dimensions (more open fissure)
-		const upperLidHeight = eyeH * 0.16;
-		const lowerLidHeight = eyeH * 0.10;
-		const fissureLift = eyeH * 0.08; // opens gap equally up/down
-		const canthusTilt = eyeH * 0.04; // lateral canthus slightly higher
-		const topBandMax = eyeH * 0.10;  // dark upper lid band thickness (max center)
-		const botBandMax = eyeH * 0.06;  // light lower lid band thickness (max center)
-		
-		// Tear duct (inner corner)
-		const tearDuctX = cx - eyeW * 0.45;
-		const tearDuctY = cy;
-		const tearDuctR = eyeW * 0.06;
-		
-		const image = offCtx.createImageData(off.width, off.height);
-		const data = image.data;
-		const depthImg = depthCtx.createImageData(depthOff.width, depthOff.height);
-		const pupilImg = pupilCtx.createImageData(pupilOff.width, pupilOff.height);
-		const depthData = depthImg.data;
-		const pupilData = pupilImg.data;
-		
-		function almondTop(u){
-			// Almond curve for upper lid: tapered corners, fuller center. Asymmetry to outer side
-			const a = Math.pow(1 - Math.abs(u), 0.9);
-			const outerBias = 0.08 * u; // slight pull towards outer canthus
-			return upperLidHeight * (0.5 + 0.6 * a) - canthusTilt * u + outerBias * eyeH;
-		}
-		function almondBot(u){
-			// Almond curve for lower lid: flatter than top
-			const a = Math.pow(1 - Math.abs(u), 1.1);
-			const outerBias = 0.05 * u;
-			return lowerLidHeight * (0.35 + 0.5 * a) - canthusTilt * u + outerBias * eyeH * 0.5;
-		}
-		function bandTop(u){
-			const a = Math.pow(1 - Math.abs(u), 0.7);
-			return topBandMax * a;
-		}
-		function bandBot(u){
-			const a = Math.pow(1 - Math.abs(u), 0.8);
-			return botBandMax * a;
-		}
-		
-		for (let y = 0; y < off.height; y++) {
-			for (let x = 0; x < off.width; x++) {
-				let g8 = 0;     // grayscale
-				let a = 0;      // alpha
-				let z = 0;      // depth 0..1 (0 = far, 1 = near)
-				
-				const dx = x - cx;
-				const dy = y - cy;
-				const u = dx / (eyeW * 0.5);
-				
-				let inEye = false;
-				let isEyelid = false;
-				let isEyelash = false;
-				let isTearDuct = false;
-				
-				// Tear duct (inner corner)
-				const tearDx = x - tearDuctX;
-				const tearDy = y - tearDuctY;
-				const tearD = Math.hypot(tearDx, tearDy);
-				if (tearD < tearDuctR) {
-					isTearDuct = true;
-					g8 = 200; a = 255; z = 0.55;
-				}
-				
-				// Eye shape with eyelids (almond/ocidental)
-				if (Math.abs(u) <= 1) {
-					const yTopCurve = cy - fissureLift - almondTop(u);
-					const yBotCurve = cy + fissureLift + almondBot(u);
-					
-					// Eye opening
-					if (y >= yTopCurve && y <= yBotCurve) {
-						inEye = true;
-						// Sclera
-						g8 = 220; a = 255; z = 0.40;
-						// Corneal dome influence (bulge)
-						const rEyeX = (dx) / (eyeW * 0.5);
-						const rEyeY = (dy) / (eyeH * 0.5);
-						const dome = Math.sqrt(Math.max(0, 1 - (rEyeX*rEyeX + rEyeY*rEyeY)));
-						z = Math.max(z, 0.40 + dome * 0.15);
-						
-						// Iris and pupil (static base colors/depth)
-						const d = Math.hypot(dx, dy);
-						if (d <= irisR) {
-							const angle = Math.atan2(dy, dx);
-							const radius = d / irisR;
-							const rings = 0.4 + 0.6 * Math.cos(radius * 15 + angle * 3) * Math.sin(radius * 8 + angle * 2);
-							g8 = Math.round(90 + rings * 70);
-							z = Math.max(z, 0.50 + dome * 0.10);
-						if (d < pupilR) { g8 = 5; z = 0.35; }
-						}
-						
-						// Eyelid shadowing (softer)
-						const distToTop = Math.max(0, y - yTopCurve);
-						const distToBot = Math.max(0, yBotCurve - y);
-						const edgeDist = Math.min(distToTop, distToBot);
-						const shadow = Math.max(0, 1 - edgeDist / (upperLidHeight * 0.40));
-						g8 = Math.round(g8 * (1 - shadow * 0.16));
-					}
-					
-					// Eyelid bands (outside opening)
-					const topBand = cy - fissureLift - almondTop(u) - bandTop(u);
-					const botBand = cy + fissureLift + almondBot(u) + bandBot(u);
-					if (y >= topBand && y < (cy - fissureLift - almondTop(u))) {
-						isEyelid = true; g8 = 70; a = 255; z = 0.70;
-					}
-					if (y > (cy + fissureLift + almondBot(u)) && y <= botBand) {
-						isEyelid = true; g8 = 180; a = 255; z = 0.60;
-					}
-				}
-				
-				// Upper eyelashes near top curve
-				if (Math.abs(u) <= 0.9 && y < (cy - fissureLift - almondTop(u)) - 1) {
-					if (Math.random() < 0.26) { isEyelash = true; g8 = 15; a = 255; z = 0.80; }
-				}
-				// Lower eyelashes near bottom curve
-				if (Math.abs(u) <= 0.75 && y > (cy + fissureLift + almondBot(u)) + 1) {
-					if (Math.random() < 0.16) { isEyelash = true; g8 = 15; a = 255; z = 0.78; }
-				}
-				
-				// Write color
-				const idx = (y * off.width + x) * 4;
-				data[idx] = g8; data[idx+1] = g8; data[idx+2] = g8; data[idx+3] = a;
-				// Write depth into alpha channel of depth buffer (scaled 0..255)
-				const di = idx;
-				const dz = clamp(Math.round(z * 255), 0, 255);
-				depthData[di] = dz; depthData[di+1] = dz; depthData[di+2] = dz; depthData[di+3] = a;
-				// Write pupil mask: alpha=255 only for pupil pixels
-				const isPupilPx = a > 0 && (Math.hypot(dx, dy) < pupilR);
-				pupilData[di] = 0; pupilData[di+1] = 0; pupilData[di+2] = 0; pupilData[di+3] = isPupilPx ? 255 : 0;
-			}
-		}
-		offCtx.putImageData(image, 0, 0);
-		depthCtx.putImageData(depthImg, 0, 0);
-		pupilCtx.putImageData(pupilImg, 0, 0);
-	}
+        // Add glitch effects
+        addGlitchEffects();
+        
+        // Add typing animation to logo
+        animateLogo();
 
-	// Scene geometry for static 3D mapping
-	let sceneCenterX = 0;
-	let sceneCenterY = 0;
-	let radiusX = 0;
-	let radiusY = 0;
-	let mouseX = 0;
-	let mouseY = 0;
-	let targetGazeX = 0;
-	let targetGazeY = 0;
-	let currentGazeX = 0;
-	let currentGazeY = 0;
-	
-	function computeSceneGeometry(){
-		const w = canvas.width / DPR;
-		const h = canvas.height / DPR;
-		sceneCenterX = w / 2;
-		sceneCenterY = h / 2;
-		radiusX = grid.size * grid.cols * 0.5;
-		radiusY = grid.size * grid.rows * 0.5;
-	}
-	
-	// Mouse tracking for eye gaze
-	function updateGaze() {
-		// map mouse to normalized offsets using drawn eye radius
-		const nx = clamp((mouseX - sceneCenterX) / Math.max(1, radiusX), -1, 1);
-		const ny = clamp((mouseY - sceneCenterY) / Math.max(1, radiusY), -1, 1);
-		// realistic max angles (radians)
-		const maxYaw = 0.6;   // left-right
-		const maxPitch = 0.45; // up-down
-		targetGazeX = nx * maxYaw;
-		targetGazeY = ny * maxPitch;
-		// faster smoothing for responsiveness
-		currentGazeX += (targetGazeX - currentGazeX) * 0.25;
-		currentGazeY += (targetGazeY - currentGazeY) * 0.25;
-	}
-	canvas.addEventListener('mousemove', (e) => {
-		const rect = canvas.getBoundingClientRect();
-		mouseX = e.clientX - rect.left;
-		mouseY = e.clientY - rect.top;
-	});
-	canvas.addEventListener('mouseleave', () => { targetGazeX = 0; targetGazeY = 0; });
+        // Auto-focus terminal
+        setTimeout(() => {
+            terminalInput.focus();
+        }, 100);
+    }
 
-	// Tiles: start scattered, then assemble to static 3D positions
-	let tiles = [];
-	let dispersing = false;
-	let disperseStartMs = 0;
-	const DISPERSE_DUR_MS = 2000;
-	let disperseClickX = 0;
-	let disperseClickY = 0;
-	function initTiles() {
-		tiles = [];
-		for (let y = 0; y < grid.rows; y++) {
-			for (let x = 0; x < grid.cols; x++) {
-				const p = offCtx.getImageData(x, y, 1, 1).data;
-				if (p[3] < 8) continue; // transparent -> skip
-				const g8 = p[0];
-				const dpx = depthCtx.getImageData(x, y, 1, 1).data;
-				const z = dpx[0] / 255; // 0..1
-				const mask = pupilCtx.getImageData(x, y, 1, 1).data;
-				const isPupil = mask[3] > 0;
-				// Base 2D cell center
-				const baseX = grid.originX + x * grid.size + grid.size * 0.5;
-				const baseY = grid.originY + y * grid.size + grid.size * 0.5;
-				// Perspective based on depth (static)
-				const f = 1.6;
-				const depthScale = 0.9;
-				const w = (z - 0.5) * 2; // -1..1 around center
-				const persp = f / (f - w * depthScale);
-				const targetCX = sceneCenterX + (baseX - sceneCenterX) * persp;
-				const targetCY = sceneCenterY + (baseY - sceneCenterY) * persp;
-				const targetX = targetCX - grid.size * 0.5;
-				const targetY = targetCY - grid.size * 0.5;
-				// scatter start
-				const angle = Math.random() * Math.PI * 2;
-				const radius = Math.random() * Math.max(grid.cols, grid.rows) * 2;
-				const sx = targetX + grid.size * 0.5 + Math.cos(angle) * radius * grid.size;
-				const sy = targetY + grid.size * 0.5 + Math.sin(angle) * radius * grid.size;
-				// per-tile timing for smoother assembly
-				const delayMs = Math.random() * 300; // 0..300ms
-				const durMs = 1200 + Math.random() * 1000; // 1.2s..2.2s
-				tiles.push({ x0: sx, y0: sy, x1: targetX, y1: targetY, g: g8, z, delayMs, durMs, isPupil, screenX: 0, screenY: 0, screenS: 0, dispDx: 0, dispDy: 0 });
-			}
-		}
-	}
+    // Create entrance transition for search page
+    function createEntranceTransition() {
+        // Create terminal overlay
+        const terminalOverlay = document.createElement('div');
+        terminalOverlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #0c0c0c;
+            z-index: 10000;
+            opacity: 1;
+            transition: opacity 1s ease;
+            font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+            color: #ffffff;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow: hidden;
+        `;
+        document.body.appendChild(terminalOverlay);
 
-	function draw(ts) {
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
-		ctx.fillStyle = '#000';
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Create terminal content container
+        const terminalContent = document.createElement('div');
+        terminalContent.style.cssText = `
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+        `;
+        terminalOverlay.appendChild(terminalContent);
 
-		updateGaze();
-		const ax = -currentGazeY; // pitch (up/down) inverted so up=up
-		const ay = currentGazeX; // yaw (left/right)
-		const f = 1.8; // focal length
-		const depthScale = 0.9;
 
-		let allAssembled = true;
-		for (const tile of tiles) {
-			const localT = clamp((ts - startAtMs - tile.delayMs) / tile.durMs, 0, 1);
-			const eased = easeInOutSine(localT);
-			if (localT < 1) allAssembled = false;
+        // Terminal output area
+        const terminalOutput = document.createElement('div');
+        terminalOutput.style.cssText = `
+            line-height: 1.4;
+            min-height: calc(100vh - 100px);
+        `;
+        terminalContent.appendChild(terminalOutput);
 
-			// Compute 3D rotation around the eye center using sphere mapping
-			const baseCX = tile.x1 + grid.size * 0.5;
-			const baseCY = tile.y1 + grid.size * 0.5;
-			const u = (baseCX - sceneCenterX) / Math.max(1, radiusX); // -1..1
-			const v = (baseCY - sceneCenterY) / Math.max(1, radiusY); // -1..1
-			const zSph = Math.sqrt(Math.max(0, 1 - u*u - v*v));
-			// mix sphere with depth map for relief
-			const wRelief = (tile.z - 0.4) * 1.2; // roughly -0.48..0.72
-			let x3 = u;
-			let y3 = v;
-			let z3 = clamp(0.6 * zSph + 0.4 * wRelief, -1, 1);
-			// rotate around X (ax) and Y (ay)
-			const cosX = Math.cos(ax), sinX = Math.sin(ax);
-			let yx = y3 * cosX - z3 * sinX;
-			let zx = y3 * sinX + z3 * cosX;
-			const cosY = Math.cos(ay), sinY = Math.sin(ay);
-			let xy = x3 * cosY + zx * sinY;
-			let zy = -x3 * sinY + zx * cosY;
-			// perspective
-			const persp = f / (f - zy * depthScale);
-			const rotCX = sceneCenterX + xy * radiusX * persp;
-			const rotCY = sceneCenterY + yx * radiusY * persp;
-			const rotX = rotCX - grid.size * 0.5;
-			const rotY = rotCY - grid.size * 0.5;
+        // Linux-style initialization commands (reduced for speed)
+        const initCommands = [
+            { cmd: "systemctl status agent-core", output: "● agent-core.service - Agent(e) Core Surveillance\n   Active: active (running)" },
+            { cmd: "ps aux | grep agent", output: "agent-core     1234  0.1  0.2  12345  6789 ?        Ss   14:30   0:01 /usr/bin/agent-core" },
+            { cmd: "echo 'Agent(e) Search Engine ready'", output: "Agent(e) Search Engine ready" }
+        ];
 
-			// assemble interpolation from scatter to rotated target
-			let px = lerp(tile.x0, rotX, eased);
-			let py = lerp(tile.y0, rotY, eased);
+        let commandIndex = 0;
 
-			const shade = 0.4 + 0.6 * tile.z;
-			ctx.fillStyle = gray(tile.g * shade);
-			const s = grid.size * FILL * persp;
-			const ox = (grid.size - s) * 0.5;
-			const oy = (grid.size - s) * 0.5;
-			// Save screen rect for hit testing
-			tile.screenX = px + ox;
-			tile.screenY = py + oy;
-			tile.screenS = s;
-			// Apply dispersion offset if active
-			if (dispersing) {
-				const tDisp = clamp((ts - disperseStartMs) / DISPERSE_DUR_MS, 0, 1);
-				const eDisp = easeInOutSine(tDisp);
-				px += tile.dispDx * eDisp;
-				py += tile.dispDy * eDisp;
-				
-				// Only render tiles that are still visible on screen
-				const finalX = px + ox;
-				const finalY = py + oy;
-				const w = canvas.width / DPR;
-				const h = canvas.height / DPR;
-				
-				// Skip rendering if tile is completely outside screen bounds
-				if (finalX + s < 0 || finalX > w || finalY + s < 0 || finalY > h) {
-					continue;
-				}
-			}
-			ctx.fillRect(px + ox, py + oy, s, s);
-		}
-		// Glitch only after assembled to keep animation fluid
-		if (!dispersing && allAssembled && Math.random() < 0.015) {
-			const bands = 2;
-			for (let i = 0; i < bands; i++) {
-				const y = Math.random() * (canvas.height - 4) | 0;
-				const h = (Math.random() * 10 + 2) | 0;
-				const dx = ((Math.random() - 0.5) * 10) | 0;
-				ctx.drawImage(canvas, 0, y, canvas.width, h, dx, y, canvas.width, h);
-			}
-		}
-		// Redirect to search page after dispersion completes
-		if (dispersing) {
-			const done = (ts - disperseStartMs) >= DISPERSE_DUR_MS;
-			if (done) {
-				// Add glitch effect before redirect
-				document.body.style.filter = 'hue-rotate(180deg) brightness(1.5)';
-				setTimeout(() => {
-					window.location.href = 'search.html';
-				}, 300);
-				return;
-			}
-		}
-		requestAnimationFrame(draw);
-	}
+        function executeInitCommand() {
+            if (commandIndex < initCommands.length) {
+                const command = initCommands[commandIndex];
+                
+                // Show command with prompt
+                const commandLine = document.createElement('div');
+                commandLine.style.cssText = `
+                    margin-bottom: 4px;
+                    color: #00ff00;
+                `;
+                commandLine.innerHTML = `<span style="color: #ffffff;">agent@search:~$</span> <span style="color: #00ff00;">${command.cmd}</span>`;
+                terminalOutput.appendChild(commandLine);
 
-	let startAtMs = 0;
-	function rebuild() {
-		computeGrid();
-		computeSceneGeometry();
-		renderTargetEye();
-		initTiles();
-		startAtMs = performance.now();
-	}
+                // Show output with typing effect
+                setTimeout(() => {
+                    const outputLine = document.createElement('div');
+                    outputLine.style.cssText = `
+                        margin-bottom: 8px;
+                        color: #cccccc;
+                        font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+                        white-space: pre-line;
+                    `;
+                    terminalOutput.appendChild(outputLine);
 
-	function triggerDisperse(cx, cy) {
-		dispersing = true;
-		disperseStartMs = performance.now();
-		disperseClickX = cx;
-		disperseClickY = cy;
-		for (const tile of tiles) {
-			const centerX = tile.screenX + tile.screenS * 0.5;
-			const centerY = tile.screenY + tile.screenS * 0.5;
-			const vx = centerX - cx;
-			const vy = centerY - cy;
-			const len = Math.hypot(vx, vy) || 1;
-			const nx = vx / len;
-			const ny = vy / len;
-			const mag = (grid.size * Math.max(grid.cols, grid.rows)) * (2.5 + Math.random() * 1.5);
-			tile.dispDx = nx * mag;
-			tile.dispDy = ny * mag;
-		}
-	}
+                    // Type output character by character
+                    let charIndex = 0;
+                    function typeChar() {
+                        if (charIndex < command.output.length) {
+                            outputLine.textContent += command.output[charIndex];
+                            charIndex++;
+                            setTimeout(typeChar, 2);
+                        } else {
+                            commandIndex++;
+                            setTimeout(executeInitCommand, 20);
+                        }
+                    }
+                    typeChar();
+                }, 20);
+            } else {
+                // Final command
+                setTimeout(() => {
+                    const finalCommand = document.createElement('div');
+                    finalCommand.style.cssText = `
+                        margin-bottom: 4px;
+                        color: #00ff00;
+                    `;
+                    finalCommand.innerHTML = `<span style="color: #ffffff;">agent@search:~$</span> <span style="color: #00ff00;">./start_search_interface.sh</span>`;
+                    terminalOutput.appendChild(finalCommand);
 
-	rebuild();
-	requestAnimationFrame(draw);
+                    setTimeout(() => {
+                        const finalOutput = document.createElement('div');
+                        finalOutput.style.cssText = `
+                            margin-bottom: 8px;
+                            color: #00ff00;
+                            font-weight: bold;
+                        `;
+                        finalOutput.textContent = "Search interface initialized successfully.";
+                        terminalOutput.appendChild(finalOutput);
 
-	// Click detection on pupil region (accounts for current eye motion via stored screen rects)
-	canvas.addEventListener('click', (e) => {
-		const rect = canvas.getBoundingClientRect();
-		const mx = e.clientX - rect.left;
-		const my = e.clientY - rect.top;
-		// if already dispersing, ignore
-		if (dispersing) return;
-		// Check if click intersects any tile marked as pupil
-		let hit = false;
-		for (const t of tiles) {
-			if (!t.isPupil) continue;
-			if (mx >= t.screenX && mx <= (t.screenX + t.screenS) && my >= t.screenY && my <= (t.screenY + t.screenS)) { hit = true; break; }
-		}
-		if (hit) { triggerDisperse(mx, my); }
-	});
+                        setTimeout(() => {
+                            // Scroll to bottom
+                            terminalContent.scrollTop = terminalContent.scrollHeight;
+                            
+                            setTimeout(() => {
+                                // Fade out
+                                terminalOverlay.style.opacity = '0';
+                                setTimeout(() => {
+                                    document.body.removeChild(terminalOverlay);
+                                    // Show initial help message
+                                    showInitialMessage();
+                                }, 100);
+                            }, 100);
+                        }, 30);
+                    }, 30);
+                }, 50);
+            }
+        }
+
+        setTimeout(executeInitCommand, 30);
+    }
+
+    // Show initial help message
+    function showInitialMessage() {
+        const terminalOutput = document.querySelector('.terminal-output');
+        if (!terminalOutput) return;
+
+        // Add welcome message
+        const welcomeLine = document.createElement('div');
+        welcomeLine.className = 'output-line';
+        welcomeLine.style.color = '#00ff00';
+        welcomeLine.style.fontWeight = 'bold';
+        welcomeLine.textContent = 'Bem-vindo ao Agent(e) Terminal. Digite "help" para ver os comandos disponíveis.';
+        terminalOutput.appendChild(welcomeLine);
+
+        // Scroll to bottom
+        scrollToBottom();
+    }
+
+    function handleKeyDown(e) {
+        const terminalInput = document.getElementById('terminalInput');
+        const terminalOutput = document.querySelector('.terminal-output');
+
+        switch(e.key) {
+            case 'Enter':
+                e.preventDefault();
+                executeCommand(terminalInput.value.trim());
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                navigateHistory(-1);
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                navigateHistory(1);
+                break;
+            case 'Tab':
+                e.preventDefault();
+                // Could implement tab completion here
+                break;
+        }
+    }
+
+    function handleInput(e) {
+        updateCursorPosition();
+    }
+
+    function handleFocus() {
+        const cursor = document.querySelector('.cursor');
+        if (cursor) {
+            cursor.style.display = 'block';
+        }
+    }
+
+    function handleBlur() {
+        const cursor = document.querySelector('.cursor');
+        if (cursor) {
+            cursor.style.display = 'none';
+        }
+    }
+
+    function updateCursorPosition() {
+        const terminalInput = document.getElementById('terminalInput');
+        const cursor = document.querySelector('.cursor');
+        
+        if (terminalInput && cursor) {
+            // Create a temporary span to measure text width
+            const tempSpan = document.createElement('span');
+            tempSpan.style.font = window.getComputedStyle(terminalInput).font;
+            tempSpan.style.visibility = 'hidden';
+            tempSpan.style.position = 'absolute';
+            tempSpan.style.whiteSpace = 'pre';
+            tempSpan.textContent = terminalInput.value;
+            
+            document.body.appendChild(tempSpan);
+            const textWidth = tempSpan.offsetWidth;
+            document.body.removeChild(tempSpan);
+            
+            cursor.style.left = textWidth + 'px';
+        }
+    }
+
+    function navigateHistory(direction) {
+        if (commandHistory.length === 0) return;
+
+        historyIndex += direction;
+        
+        if (historyIndex < 0) {
+            historyIndex = -1;
+            currentCommand = '';
+        } else if (historyIndex >= commandHistory.length) {
+            historyIndex = commandHistory.length - 1;
+        }
+
+        const terminalInput = document.getElementById('terminalInput');
+        if (terminalInput) {
+            terminalInput.value = historyIndex >= 0 ? commandHistory[historyIndex] : '';
+            updateCursorPosition();
+        }
+    }
+
+    function executeCommand(command) {
+        const terminalInput = document.getElementById('terminalInput');
+        const terminalOutput = document.querySelector('.terminal-output');
+
+        if (!command) {
+            addOutputLine('');
+            return;
+        }
+
+        // Add command to history
+        if (commandHistory[commandHistory.length - 1] !== command) {
+            commandHistory.push(command);
+        }
+        historyIndex = commandHistory.length;
+
+        // Display the command
+        addCommandLine(command);
+
+        // Execute command
+        const result = processCommand(command);
+        if (result) {
+            addOutputLine(result);
+        }
+
+        // Clear input
+        if (terminalInput) {
+            terminalInput.value = '';
+            updateCursorPosition();
+        }
+    }
+
+    function addCommandLine(command) {
+        const terminalOutput = document.querySelector('.terminal-output');
+        const commandLine = document.createElement('div');
+        commandLine.className = 'terminal-history';
+        commandLine.innerHTML = `<span class="prompt">user@agent:~$</span> <span class="command">${command}</span>`;
+        terminalOutput.appendChild(commandLine);
+        scrollToBottom();
+    }
+
+    function addOutputLine(text) {
+        const terminalOutput = document.querySelector('.terminal-output');
+        const outputLine = document.createElement('div');
+        outputLine.className = 'output-line';
+        outputLine.textContent = text;
+        terminalOutput.appendChild(outputLine);
+        scrollToBottom();
+    }
+
+    function scrollToBottom() {
+        const terminalBody = document.querySelector('.terminal-body');
+        if (terminalBody) {
+            // Smooth scroll to bottom
+            terminalBody.scrollTo({
+                top: terminalBody.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
+    }
+
+    // Show file content in popup
+    function showFileContent(filename) {
+        const fileContents = {
+            'LICENSE': `MIT License
+
+Copyright (c) 2025 Leonardo Tristão
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.`,
+
+            'README.md': `agent(e) — sistema de busca comportamental v0.∞
+
+DESCRIÇÃO DO PROJETO
+
+agent(e) é um motor de busca experimental.
+Sua principal função é coletar, indexar e reorganizar aquilo que os usuários 
+chamam de "intenção".
+Diferente de sistemas convencionais, agent(e) não busca o que você digita — 
+ele busca por que você digitou.
+
+INSTRUÇÕES DE USO
+
+1. Acesse.
+2. Pense em algo.
+3. Espere.
+4. agent(e) fará o resto.
+
+Nota: o tempo de resposta pode variar conforme o nível de resistência 
+do usuário.
+
+POLÍTICA DE PRIVACIDADE
+
+Ao acessar este diretório, você já concedeu permissão para:
+
+• Indexar memórias voluntárias e involuntárias;
+• Coletar hesitações, impulsos e lapsos de atenção;
+• Armazenar fragmentos de você em servidores distribuídos entre o real 
+  e o simbólico.
+
+Para solicitar remoção de dados, envie uma requisição formal contendo 
+todas as partes de si que deseja esquecer.
+Nenhuma foi aceita até agora.
+
+MÓDULOS PRINCIPAIS
+
+tracking.module        → registra intenções
+memory.cache           → arquiva vestígios afetivos
+prediction.engine      → projeta você em versões futuras
+correction.protocol    → ajusta incoerências narrativas
+
+Alguns módulos podem continuar em execução após o encerramento do sistema.
+
+OBSERVAÇÕES TÉCNICAS
+
+• Este sistema não contém bugs.
+• Apenas comportamentos humanos inesperados.
+• Se perceber que está sendo observado, é porque está.
+
+NOTA DO DESENVOLVEDOR
+
+Este arquivo não deveria ser lido.
+Mas você procurou.
+E procurou é tudo o que precisávamos saber.
+
+Leonardo Tristão — 2025
+Projeto realizado para a matéria de extensão "Desprogramar para (Re)Programar"`
+        };
+
+        // Normalize filename to handle case variations
+        const normalizedFilename = filename.toLowerCase();
+        const fileKey = Object.keys(fileContents).find(key => key.toLowerCase() === normalizedFilename);
+        const content = fileContents[fileKey] || `Arquivo não encontrado: ${filename}`;
+
+        // Create popup overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+
+        // Create popup container
+        const popup = document.createElement('div');
+        popup.style.cssText = `
+            width: 70%;
+            height: 70%;
+            background: #0c0c0c;
+            border: 1px solid #333333;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        `;
+
+        // Create header
+        const header = document.createElement('div');
+        header.style.cssText = `
+            background: #1a1a1a;
+            padding: 1rem;
+            border-bottom: 1px solid #333333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        `;
+        header.innerHTML = `
+            <span style="color: #ffffff; font-family: 'Courier New', monospace; font-weight: bold;">${filename}</span>
+            <button id="closeFileBtn" style="background: #ff5f56; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer;"></button>
+        `;
+
+        // Create content area
+        const contentArea = document.createElement('div');
+        contentArea.style.cssText = `
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            white-space: pre-wrap;
+        `;
+        contentArea.textContent = content;
+
+        // Create footer
+        const footer = document.createElement('div');
+        footer.style.cssText = `
+            background: #1a1a1a;
+            padding: 0.5rem 1rem;
+            border-top: 1px solid #333333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        `;
+        footer.innerHTML = `
+            <span style="color: #888888; font-family: 'Courier New', monospace; font-size: 0.8rem;">Arquivo: ${filename}</span>
+            <button id="closeFileBtn2" style="background: #333333; color: #ffffff; border: 1px solid #555555; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-family: 'Courier New', monospace;">Fechar</button>
+        `;
+
+        // Assemble popup
+        popup.appendChild(header);
+        popup.appendChild(contentArea);
+        popup.appendChild(footer);
+        overlay.appendChild(popup);
+        document.body.appendChild(overlay);
+
+        // Close functionality
+        function closePopup() {
+            document.body.removeChild(overlay);
+        }
+
+        document.getElementById('closeFileBtn').addEventListener('click', closePopup);
+        document.getElementById('closeFileBtn2').addEventListener('click', closePopup);
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closePopup();
+        });
+
+        // ESC key to close
+        document.addEventListener('keydown', function escHandler(e) {
+            if (e.key === 'Escape') {
+                closePopup();
+                document.removeEventListener('keydown', escHandler);
+            }
+        });
+    }
+
+    function processCommand(command) {
+        const parts = command.toLowerCase().split(' ');
+        const cmd = parts[0];
+        const args = parts.slice(1);
+
+        switch(cmd) {
+            case 'search':
+                if (args.length === 0) {
+                    return 'Uso: search <termo de busca>';
+                }
+                const query = args.join(' ');
+                performSearch(query);
+                return `Buscando por: "${query}"...`;
+
+            case 'help':
+                return `AGENT(E) TERMINAL HELP
+===============================================
+
+COMANDOS DISPONÍVEIS:
+  search <termo>     - Pesquisar na web usando Agent(e)
+  clear              - Limpar o terminal
+  help               - Mostrar esta ajuda
+  about              - Informações sobre o Agent(e)
+  ls                 - Listar arquivos do sistema
+  cat <arquivo>      - Exibir conteúdo de arquivo
+  date               - Data e hora atual
+
+EXEMPLOS:
+  search algoritmo de vigilância
+  search privacidade digital
+  search big data
+  cat README.md
+  cat LICENSE
+
+Digite qualquer comando seguido de ENTER para executar.
+===============================================`;
+
+            case 'clear':
+                clearTerminal();
+                return null;
+
+            case 'about':
+                return `                    ████████╗██████╗  █████╗ ███████╗██╗  ██╗██╗     ██╗     
+                    ╚══██╔══╝██╔══██╗██╔══██╗██╔════╝██║  ██║██║     ██║     
+                       ██║   ██████╔╝███████║███████╗███████║██║     ██║     
+                       ██║   ██╔══██╗██╔══██║╚════██║██╔══██║██║     ██║     
+                       ██║   ██║  ██║██║  ██║███████║██║  ██║███████╗███████╗
+                       ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝
+
+                    Leonardo Tristão@agent-terminal
+                    ────────────────────────────────────────────────────────────────
+                    Projeto: Agent(e) Search Engine
+                    Projeto realizado para a matéria de extensão Desprogramar para (Re)Programar
+                    Tipo: Literatura Digital Interativa
+                    Tema: Crítica à Vigilância Algorítmica
+                    Tecnologia: HTML5, CSS3, JavaScript
+                    Interface: Terminal Linux Emulator
+                    Fonte: Courier New (Monospace)
+                    Criado por: Leonardo Tristão 2025`;
+
+            case 'version':
+                return 'Agent(e) Terminal v1.0.0 - Linux Terminal Emulator';
+
+            case 'whoami':
+                return `Você é o produto beta daquilo que procura.
+Identidade: usuário-consumidor #${Math.floor(Math.random() * 9999)}
+Status: monitorado ativamente
+Última atualização: ${new Date().toLocaleString('pt-BR')}`;
+
+            case 'ls':
+                return `LICENSE
+README.md`;
+
+            case 'cat':
+                if (args.length === 0) {
+                    return 'Uso: cat <arquivo>';
+                }
+                const filename = args[0];
+                showFileContent(filename);
+                return `Exibindo conteúdo de: ${filename}`;
+
+            case 'date':
+                return new Date().toLocaleString('pt-BR');
+
+            default:
+                return `Comando não encontrado: ${cmd}. Digite 'help' para ver comandos disponíveis.`;
+        }
+    }
+
+    function clearTerminal() {
+        const terminalOutput = document.querySelector('.terminal-output');
+        if (terminalOutput) {
+            // Clear terminal but preserve initial message
+            terminalOutput.innerHTML = '';
+            
+            // Re-add the initial welcome message
+            const welcomeLine = document.createElement('div');
+            welcomeLine.className = 'output-line';
+            welcomeLine.style.color = '#00ff00';
+            welcomeLine.style.fontWeight = 'bold';
+            welcomeLine.textContent = 'Bem-vindo ao Agent(e) Terminal. Digite "help" para ver os comandos disponíveis.';
+            terminalOutput.appendChild(welcomeLine);
+            
+            // Scroll to bottom
+            scrollToBottom();
+        }
+    }
+
+    function performSearch(query = '') {
+        if (!query) {
+            return;
+        }
+        
+            // Simulate search - in a real implementation, this would redirect to search results
+            console.log('Searching for:', query);
+            
+            // Show search result (in a real implementation, this would redirect to search results)
+            setTimeout(() => {
+            addOutputLine(`Resultados da busca por "${query}":`);
+            addOutputLine(`1. https://example.com/result1 - Resultado relevante 1`);
+            addOutputLine(`2. https://example.com/result2 - Resultado relevante 2`);
+            addOutputLine(`3. https://example.com/result3 - Resultado relevante 3`);
+            addOutputLine(`(Esta é uma demonstração - em uma implementação real, isso redirecionaria para os resultados de busca)`);
+            }, 1000);
+    }
+
+    function addGlitchEffects() {
+        const logo = document.querySelector('.logo-ascii pre');
+        if (logo) {
+            // Random glitch effect
+            setInterval(() => {
+                if (Math.random() < 0.1) { // 10% chance every interval
+                    logo.style.animation = 'none';
+                    setTimeout(() => {
+                        logo.style.animation = 'glitch 0.3s ease-in-out';
+                    }, 10);
+                }
+            }, 2000);
+        }
+    }
+
+    function animateLogo() {
+        const logo = document.querySelector('.logo-ascii pre');
+        if (logo) {
+            // Add a subtle pulsing effect
+            logo.style.animation = 'pulse 3s ease-in-out infinite';
+        }
+    }
+
+    // Add CSS animations
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        
+        .search-input-overlay {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTerminalInterface);
+    } else {
+        initTerminalInterface();
+    }
+
+    // Add keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Cmd + K to focus terminal
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            const terminalInput = document.getElementById('terminalInput');
+            if (terminalInput) {
+                terminalInput.focus();
+            }
+        }
+        
+        // Escape to clear terminal
+        if (e.key === 'Escape') {
+            const terminalInput = document.getElementById('terminalInput');
+            if (terminalInput) {
+                terminalInput.value = '';
+                updateCursorPosition();
+            }
+        }
+    });
+
+    // Add hover effects for better UX
+    const terminalInput = document.getElementById('terminalInput');
+    if (terminalInput) {
+        terminalInput.title = 'Digite comandos do terminal (Ctrl+K para focar, Esc para limpar)';
+    }
+
+    // Initialize popup functionality
+    function initPopups() {
+        const popupTriggers = document.querySelectorAll('.popup-trigger');
+        const popups = document.querySelectorAll('.popup');
+        
+        popupTriggers.forEach(trigger => {
+            const popupId = trigger.getAttribute('data-popup');
+            const popup = document.getElementById(`popup-${popupId}`);
+            
+            if (popup) {
+                let timeoutId;
+                
+                trigger.addEventListener('mouseenter', () => {
+                    clearTimeout(timeoutId);
+                    // Hide all other popups
+                    popups.forEach(p => p.classList.remove('show'));
+                    // Show current popup
+                    popup.classList.add('show');
+                });
+                
+                trigger.addEventListener('mouseleave', () => {
+                    timeoutId = setTimeout(() => {
+                        popup.classList.remove('show');
+                    }, 100);
+                });
+                
+                popup.addEventListener('mouseenter', () => {
+                    clearTimeout(timeoutId);
+                });
+                
+                popup.addEventListener('mouseleave', () => {
+                    timeoutId = setTimeout(() => {
+                        popup.classList.remove('show');
+                    }, 100);
+                });
+            }
+        });
+        
+        // Hide all popups when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.popup-trigger') && !e.target.closest('.popup')) {
+                popups.forEach(popup => popup.classList.remove('show'));
+            }
+        });
+    }
+
+    // Initialize popups when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initPopups);
+    } else {
+        initPopups();
+    }
+
+    // Floating Commands System
+    function initFloatingCommands() {
+        const commands = [
+            "🔍 Coletando intenções...",
+            "👁️ Analisando padrões comportamentais...",
+            "📡 Atualizando sua probabilidade de arrependimento..."
+        ];
+        
+        let currentCommandIndex = 0;
+        let isTyping = false;
+        
+        function showFloatingCommand() {
+            if (isTyping) return;
+            
+            const floatingCommand = document.querySelector('.floating-command');
+            const floatingText = document.querySelector('.floating-text');
+            
+            if (!floatingCommand || !floatingText) return;
+            
+            isTyping = true;
+            const command = commands[currentCommandIndex];
+            
+            // Reset and show
+            floatingCommand.classList.remove('show', 'complete');
+            floatingText.textContent = '';
+            
+            setTimeout(() => {
+                floatingCommand.classList.add('show', 'typing');
+                typeText(floatingText, command, () => {
+                    floatingCommand.classList.remove('typing');
+                    floatingCommand.classList.add('complete');
+                    
+                    // Hide after 3 seconds
+                    setTimeout(() => {
+                        floatingCommand.classList.remove('show', 'complete');
+                        isTyping = false;
+                    }, 3000);
+                });
+            }, 100);
+            
+            // Move to next command
+            currentCommandIndex = (currentCommandIndex + 1) % commands.length;
+        }
+        
+        function typeText(element, text, callback) {
+            let index = 0;
+            const typingSpeed = 50; // milliseconds per character
+            
+            function typeChar() {
+                if (index < text.length) {
+                    element.textContent += text[index];
+                    index++;
+                    setTimeout(typeChar, typingSpeed);
+                } else {
+                    if (callback) callback();
+                }
+            }
+            
+            typeChar();
+        }
+        
+        // Show first command after 2 seconds
+        setTimeout(showFloatingCommand, 2000);
+        
+        // Then show every 60 seconds
+        setInterval(showFloatingCommand, 60000);
+    }
+
+    // Initialize floating commands when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initFloatingCommands);
+    } else {
+        initFloatingCommands();
+    }
+
+    // Monitoring Log System
+    function initMonitoringLog() {
+        const logMessages = [
+            { module: "tracking.module", message: "nova intenção detectada: \"dúvida disfarçada de busca\"" },
+            { module: "memory.cache", message: "padrão emocional: hesitação" },
+            { module: "prediction.engine", message: "próxima ação: clicar no botão errado" },
+            { module: "data.node", message: "índice de confiança atualizado: 82%" },
+            { module: "empathy.override", message: "simulando proximidade" },
+            { module: "behavior.analyzer", message: "curiosidade detectada: nível alto" },
+            { module: "attention.tracker", message: "foco disperso: 3 pontos simultâneos" },
+            { module: "intent.predictor", message: "probabilidade de abandono: 23%" },
+            { module: "emotion.scanner", message: "estado: contemplativo" },
+            { module: "pattern.matcher", message: "comportamento similar a usuário #4729" },
+            { module: "surveillance.core", message: "movimento do mouse: padrão circular" },
+            { module: "psychology.engine", message: "impulso de busca: necessidade de validação" },
+            { module: "neural.mapper", message: "conexões ativas: 847 neurônios" },
+            { module: "consciousness.probe", message: "nível de consciência: parcialmente ativo" },
+            { module: "reality.filter", message: "distorção perceptiva: mínima" }
+        ];
+        
+        let currentMessageIndex = 0;
+        
+        function updateLog() {
+            const logTime = document.getElementById('logTime');
+            const logModule = document.getElementById('logModule');
+            const logMessage = document.getElementById('logMessage');
+            
+            if (!logTime || !logModule || !logMessage) return;
+            
+            // Update time
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('pt-BR', { 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            });
+            logTime.textContent = timeString;
+            
+            // Update message
+            const currentLog = logMessages[currentMessageIndex];
+            logModule.textContent = currentLog.module;
+            logMessage.textContent = currentLog.message;
+            
+            // Move to next message
+            currentMessageIndex = (currentMessageIndex + 1) % logMessages.length;
+        }
+        
+        // Update immediately
+        updateLog();
+        
+        // Update every 15-30 seconds randomly
+        function scheduleNextUpdate() {
+            const randomDelay = Math.random() * 15000 + 15000; // 15-30 seconds
+            setTimeout(() => {
+                updateLog();
+                scheduleNextUpdate();
+            }, randomDelay);
+        }
+        
+        scheduleNextUpdate();
+        
+        // Also update time every second
+        setInterval(() => {
+            const logTime = document.getElementById('logTime');
+            if (logTime) {
+                const now = new Date();
+                const timeString = now.toLocaleTimeString('pt-BR', { 
+                    hour12: false, 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    second: '2-digit' 
+                });
+                logTime.textContent = timeString;
+            }
+        }, 1000);
+    }
+
+    // Initialize monitoring log when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initMonitoringLog);
+    } else {
+        initMonitoringLog();
+    }
+
+    // Configuration Panel System
+    function initConfigPanel() {
+        // Toggle switches
+        const toggles = document.querySelectorAll('.toggle');
+        toggles.forEach(toggle => {
+            toggle.addEventListener('click', function() {
+                const configType = this.getAttribute('data-config');
+                
+                if (configType === 'rastros' || configType === 'hesitacao' || configType === 'identidade') {
+                    // These toggles cannot be turned off
+                    showConfigWarning('Essa opção não pode ser alterada. Você já consentiu antes de chegar aqui.');
+                    return;
+                }
+                
+                this.classList.toggle('active');
+                const text = this.querySelector('.toggle-text');
+                text.textContent = this.classList.contains('active') ? 'Ativo' : 'Inativo';
+                
+                // Show config sync message
+                showConfigLog(`config.sync | preferências ignoradas | controle restaurado`);
+            });
+        });
+
+        // Sliders
+        const sliders = document.querySelectorAll('.slider');
+        sliders.forEach(slider => {
+            slider.addEventListener('input', function() {
+                const value = this.value;
+                const valueSpan = this.parentElement.querySelector('.slider-value');
+                valueSpan.textContent = value + '%';
+                
+                // Show config sync message
+                showConfigLog(`config.sync | ajuste registrado | comportamento monitorado`);
+            });
+        });
+
+        // Radio buttons
+        const radioGroups = document.querySelectorAll('.radio-group');
+        radioGroups.forEach(group => {
+            const radios = group.querySelectorAll('input[type="radio"]');
+            radios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    showConfigLog(`config.sync | seleção processada | perfil atualizado`);
+                });
+            });
+        });
+
+        // Select dropdowns
+        const selects = document.querySelectorAll('.config-select');
+        selects.forEach(select => {
+            select.addEventListener('change', function() {
+                showConfigLog(`config.sync | filtro aplicado | realidade ajustada`);
+            });
+        });
+
+        // Track time spent reading config
+        let readingTime = 0;
+        const readingInterval = setInterval(() => {
+            readingTime += 1;
+            if (readingTime === 10) {
+                showConfigWarning('Tempo de leitura acima da média. Curiosidade registrada.');
+            }
+        }, 1000);
+
+        // Clear interval when popup closes
+        const configPopup = document.getElementById('popup-configuracoes');
+        if (configPopup) {
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                        if (!configPopup.classList.contains('show')) {
+                            clearInterval(readingInterval);
+                        }
+                    }
+                });
+            });
+            observer.observe(configPopup, { attributes: true });
+        }
+    }
+
+    // Global functions for config panel
+    window.gerarRelatorio = function() {
+        const warning = document.getElementById('configWarning');
+        if (warning) {
+            warning.textContent = 'Relatório gerado. Personalidade vendida com sucesso.';
+            warning.style.color = '#ff6666';
+            
+            setTimeout(() => {
+                warning.textContent = '';
+            }, 3000);
+        }
+        
+        showConfigLog(`report.generator | dados pessoais coletados | monetização ativa`);
+    };
+
+    window.modoAvancado = function() {
+        const terminalInput = document.getElementById('terminalInput');
+        if (terminalInput) {
+            terminalInput.focus();
+            terminalInput.value = '/whoami';
+            updateCursorPosition();
+            
+            // Execute the command
+            setTimeout(() => {
+                executeCommand('/whoami');
+            }, 100);
+        }
+        
+        showConfigLog(`advanced.mode | acesso negado | privilégios insuficientes`);
+    };
+
+    function showConfigWarning(message) {
+        const warning = document.getElementById('configWarning');
+        if (warning) {
+            warning.textContent = message;
+            warning.style.color = '#ff6666';
+            
+            setTimeout(() => {
+                warning.textContent = '';
+            }, 3000);
+        }
+    }
+
+    function showConfigLog(message) {
+        // Add to monitoring log
+        const logModule = document.getElementById('logModule');
+        const logMessage = document.getElementById('logMessage');
+        
+        if (logModule && logMessage) {
+            const parts = message.split(' | ');
+            if (parts.length >= 3) {
+                logModule.textContent = parts[0];
+                logMessage.textContent = parts.slice(1).join(' | ');
+            }
+        }
+        
+        // Flash effect
+        document.body.style.background = '#0a0a0a';
+        setTimeout(() => {
+            document.body.style.background = '#000000';
+        }, 100);
+    }
+
+    // Initialize config panel when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initConfigPanel);
+    } else {
+        initConfigPanel();
+    }
+
+
 })();
-
-
