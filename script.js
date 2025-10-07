@@ -542,13 +542,7 @@ COMANDOS DISPONÍVEIS:
   ls                 - Listar arquivos do sistema
   cat <arquivo>      - Exibir conteúdo de arquivo
   date               - Data e hora atual
-
-EXEMPLOS:
-  search algoritmo de vigilância
-  search privacidade digital
-  search big data
-  cat README.md
-  cat LICENSE
+  remove user        - Remover usuário do sistema
 
 Digite qualquer comando seguido de ENTER para executar.
 ===============================================`;
@@ -600,6 +594,16 @@ README.md`;
             case 'date':
                 return new Date().toLocaleString('pt-BR');
 
+            case 'remove':
+                if (args.length === 0) {
+                    return 'Uso: remove <objeto>';
+                }
+                if (args[0] === 'user') {
+                    removeUser();
+                    return null;
+                }
+                return `Objeto '${args[0]}' não encontrado`;
+
             default:
                 return `Comando não encontrado: ${cmd}. Digite 'help' para ver comandos disponíveis.`;
         }
@@ -622,6 +626,48 @@ README.md`;
             // Scroll to bottom
             scrollToBottom();
         }
+    }
+
+    function removeUser() {
+        const terminalOutput = document.querySelector('.terminal-output');
+        
+        // Clear terminal first
+        terminalOutput.innerHTML = '';
+        
+        // Add initial error message
+        const initialError = document.createElement('div');
+        initialError.className = 'output-line';
+        initialError.textContent = 'Iniciando processo de remoção de usuário...';
+        terminalOutput.appendChild(initialError);
+        scrollToBottom();
+        
+        // Generate 99 error lines rapidly
+        let errorCount = 0;
+        const errorInterval = setInterval(() => {
+            const errorLine = document.createElement('div');
+            errorLine.className = 'output-line';
+            errorLine.style.color = '#ff6666';
+            errorLine.textContent = `ERROR: Failed to remove user data from server ${Math.floor(Math.random() * 9999)}`;
+            terminalOutput.appendChild(errorLine);
+            scrollToBottom();
+            
+            errorCount++;
+            
+            if (errorCount >= 99) {
+                clearInterval(errorInterval);
+                
+                // Add final message after a brief pause
+                setTimeout(() => {
+                    const finalLine = document.createElement('div');
+                    finalLine.className = 'output-line';
+                    finalLine.style.color = '#ffaa00';
+                    finalLine.style.fontWeight = 'bold';
+                    finalLine.textContent = 'Você não pode escapar';
+                    terminalOutput.appendChild(finalLine);
+                    scrollToBottom();
+                }, 200);
+            }
+        }, 25); // Very fast - 25ms between errors
     }
 
     function performSearch(query = '') {
@@ -900,7 +946,7 @@ README.md`;
         // Update every 15-30 seconds randomly
         function scheduleNextUpdate() {
             const randomDelay = Math.random() * 15000 + 15000; // 15-30 seconds
-            setTimeout(() => {
+				setTimeout(() => {
                 updateLog();
                 scheduleNextUpdate();
             }, randomDelay);
@@ -942,8 +988,8 @@ README.md`;
                 if (configType === 'rastros' || configType === 'hesitacao' || configType === 'identidade') {
                     // These toggles cannot be turned off
                     showConfigWarning('Essa opção não pode ser alterada. Você já consentiu antes de chegar aqui.');
-                    return;
-                }
+				return;
+			}
                 
                 this.classList.toggle('active');
                 const text = this.querySelector('.toggle-text');
