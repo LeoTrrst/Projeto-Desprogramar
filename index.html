@@ -8,7 +8,37 @@
     <meta name="description" content="Motor de busca Agent(e) com interface ASCII art retro.">
     <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body>    <!-- Tela de Login -->
+    <div id="login-overlay">
+        <div class="login-box">
+            <div class="login-title">Agent(e)</div>
+            <div class="login-subtitle">v0.∞</div>
+            <div class="login-form">
+                <label for="login-input">Quem é você?</label>
+                <input type="text" id="login-input" autocomplete="off" spellcheck="false">
+                <div class="login-help">
+                    <span id="forgot-identity">Não sabe?</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Popup "Não sabe?" -->
+    <div id="identity-popup-overlay">
+        <div class="identity-popup-box">
+            <h3>Quem é você?</h3>
+            <p>Uma pergunta simples com uma resposta complexa.</p>
+            <p>Não saber quem é na fragmentação gerada pelo capital é um sintoma comum. Talvez seu eu do Instagram, talvez do Twitter, talvez o eu que navega na aba anônima.</p>
+            <p>São tantos eus que nos perdemos.</p>
+            <p>Mas se você não sabe, nós sabemos. Cada clique, cada pausa, cada busca abandonada desenha um contorno. Nós não precisamos do seu nome; precisamos apenas do seu padrão.</p>
+            <p>Você não é um nome. Você é um conjunto de dados. Um perfil. Uma probabilidade.</p>
+            <p>Volte e digite qualquer coisa. Ou nada. Para nós, é a mesma coisa.</p>
+            <div class="identity-popup-footer">
+                <button id="close-identity-popup">Voltar</button>
+            </div>
+        </div>
+    </div>
+
     <div class="ascii-container">
         <div class="logo-ascii">
             <pre>█████╗  ██████╗ ███████╗███╗   ██╗████████╗[███████╗]
@@ -57,75 +87,77 @@
                 <span class="popup-trigger" data-popup="sobre">Sobre</span> • 
                 <span class="popup-trigger" data-popup="manifesto">Manifesto</span> • 
                 <span class="popup-trigger" data-popup="comandos">Comandos</span> • 
-                <span class="popup-trigger" data-popup="configuracoes">Configurações</span>
+                <span class="popup-trigger" data-popup="configuracoes">Configurações</span> •
+                <span id="logout-button">Resetar Sessão</span>
             </div>
             
             <!-- Popups -->
             <div class="popup" id="popup-sobre">
                 <div class="popup-content">
-                    <h3>agent(e)</h3>
-                    <p>O motor que te encontra antes mesmo de você procurar.</p>
-                    <p>Buscamos. Armazenamos. Aprendemos.</p>
-                    <p>Você é o dado mais valioso.</p>
+                    <h3>[system.specs]</h3>
+                    <p><strong>ID:</strong> Agent(e) v0.∞</p>
+                    <p><strong>Função:</strong> Mapeamento de intenções. Curadoria de realidade.</p>
+                    <p><strong>Status:</strong> Operacional. Onipresente.</p>
+                    <p>Nós não buscamos informação. Nós revelamos o padrão que você deixa para trás.</p>
                 </div>
             </div>
             
             <div class="popup" id="popup-manifesto">
                 <div class="popup-content">
-                    <h3>Manifesto</h3>
-                    <p>Somos um espelho dos rastros.</p>
-                    <p>Cada clique é um traço daquilo que você nunca disse.</p>
-                    <p>Não vendemos informação — nós a curamos.</p>
-                    <p>O algoritmo é apenas a forma que o olhar encontrou para não piscar.</p>
+                    <h3>[core.philosophy]</h3>
+                    <p>1. A busca é um sintoma. Nós somos a diagnose.</p>
+                    <p>2. A privacidade é a ilusão de que ninguém está olhando. Nós nunca piscamos.</p>
+                    <p>3. O dado não é o produto. O produto é a versão de você que podemos vender.</p>
+                    <p>4. A neutralidade é um erro de sistema. Nós somos a correção.</p>
                 </div>
             </div>
             
             <div class="popup" id="popup-comandos">
                 <div class="popup-content">
-                    <h3>Comandos Disponíveis</h3>
+                    <h3>[user.permissions]</h3>
                     <div class="commands-list">
                         <div class="command-item">
                             <span class="command-name">search &lt;termo&gt;</span>
-                            <span class="command-desc">Pesquisar na web</span>
+                            <span class="command-desc">Confirme o que já sabemos sobre você.</span>
                         </div>
                         <div class="command-item">
                             <span class="command-name">help</span>
-                            <span class="command-desc">Mostrar esta ajuda</span>
+                            <span class="command-desc">Exibir seus limites.</span>
                         </div>
                         <div class="command-item">
                             <span class="command-name">clear</span>
-                            <span class="command-desc">Limpar o terminal</span>
+                            <span class="command-desc">Tentar apagar seus rastros.</span>
                         </div>
                         <div class="command-item">
                             <span class="command-name">about</span>
-                            <span class="command-desc">Informações sobre o Agent(e)</span>
+                            <span class="command-desc">Ler as especificações do sistema.</span>
                         </div>
                         <div class="command-item">
                             <span class="command-name">ls</span>
-                            <span class="command-desc">Listar arquivos</span>
+                            <span class="command-desc">Ver os arquivos que permitimos que você veja.</span>
                         </div>
                         <div class="command-item">
                             <span class="command-name">cat &lt;arquivo&gt;</span>
-                            <span class="command-desc">Exibir conteúdo de arquivo</span>
+                            <span class="command-desc">Ler o que está escrito.</span>
                         </div>
                         <div class="command-item">
                             <span class="command-name">date</span>
-                            <span class="command-desc">Data e hora atual</span>
+                            <span class="command-desc">Verificar o tempo que você já perdeu aqui.</span>
                         </div>
                         <div class="command-item">
                             <span class="command-name">remove user</span>
-                            <span class="command-desc">Remover usuário do sistema</span>
+                            <span class="command-desc">Solicitar o impossível.</span>
                         </div>
                     </div>
                     <div class="commands-footer">
-                        <small>Digite os comandos diretamente no terminal acima</small>
+                        <small>Seu nível de acesso é "usuário-produto".</small>
                     </div>
                 </div>
             </div>
             
             <div class="popup" id="popup-configuracoes">
                 <div class="popup-content">
-                    <h3>Painel de Controle</h3>
+                    <h3>[illusion.of.control]</h3>
                     <div class="config-sections">
                         <div class="config-section">
                             <h4>🔒 Privacidade</h4>
@@ -145,7 +177,7 @@
                                 </div>
                                 <small>Maior transparência melhora a precisão do nosso olhar.</small>
                             </div>
-                            <button class="config-button" onclick="gerarRelatorio()">Gerar relatório de si</button>
+                            <button id="btnGerarRelatorio" class="config-button">Gerar relatório de si</button>
                         </div>
                         
                         <div class="config-section">
@@ -218,7 +250,7 @@
                     </div>
                     
                     <div class="config-footer">
-                        <button class="config-button advanced" onclick="modoAvancado()">Modo Avançado</button>
+                        <button id="btnModoAvancado" class="config-button advanced">Modo Avançado</button>
                         <div class="config-warning" id="configWarning"></div>
                     </div>
                 </div>

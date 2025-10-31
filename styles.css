@@ -40,6 +40,13 @@ body {
     padding-top: 3rem;
 }
 
+.ascii-container {
+    visibility: hidden; /* Começa escondido */
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+}
+.ascii-container.visible { visibility: visible; opacity: 1; }
+
 /* Logo ASCII Art */
 .logo-ascii {
     text-align: center;
@@ -47,7 +54,7 @@ body {
 }
 
 .logo-ascii pre {
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     line-height: 1.1;
     color: #ffffff;
     text-shadow: 0 0 5px #ffffff;
@@ -89,6 +96,7 @@ body {
 .terminal-controls {
     display: flex;
     gap: 0.5rem;
+    visibility: hidden; /* Esconde os botões de controle */
 }
 
 .control {
@@ -154,7 +162,7 @@ body {
 .output-line {
     color: #ffffff;
     margin-bottom: 0.2rem;
-    font-size: 0.9rem;
+    font-size: 1rem;
     word-wrap: break-word;
     white-space: pre-line;
     font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
@@ -173,7 +181,7 @@ body {
 
 .prompt {
     color: #ffffff;
-    font-size: 0.9rem;
+    font-size: 1rem;
     font-weight: bold;
     white-space: nowrap;
 }
@@ -191,7 +199,7 @@ body {
     outline: none;
     color: #ffffff;
     font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
-    font-size: 0.9rem;
+    font-size: 1rem;
     width: 100%;
     padding: 0;
     caret-color: transparent;
@@ -337,8 +345,7 @@ body {
     color: #888888;
     text-shadow: 0 0 3px #888888;
     cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 0.8rem;
+    transition: all 0.3s ease;    font-size: 0.9rem;
 }
 
 .footer-links span:hover {
@@ -346,6 +353,13 @@ body {
     text-shadow: 0 0 5px #ffffff;
 }
 
+#logout-button {
+    color: #888888;
+    text-shadow: 0 0 3px #888888;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
 /* Popup Styles */
 .popup-trigger {
     position: relative;
@@ -397,7 +411,7 @@ body {
 
 .popup-content p {
     color: #cccccc;
-    font-size: 0.9rem;
+    font-size: 1rem;
     line-height: 1.4;
     margin: 0 0 0.5rem 0;
     font-family: 'Courier New', 'Monaco', 'Consolas', monospace;

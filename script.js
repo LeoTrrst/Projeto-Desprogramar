@@ -2,6 +2,7 @@
 (function(){
     let commandHistory = [];
     let historyIndex = -1;
+    let currentWelcomeMessage = '';
     let currentCommand = '';
 
     // Initialize terminal interface
@@ -156,8 +157,14 @@
                                 terminalOverlay.style.opacity = '0';
                                 setTimeout(() => {
                                     document.body.removeChild(terminalOverlay);
-                                    // Show initial help message
-                                    showInitialMessage();
+                                    // Check if user has logged in before
+                                    if (localStorage.getItem('agent_has_logged_in') === 'true') {
+                                        showTerminalDirectly();
+                                    } else {
+                                        // Show login screen for the first time
+                                        showLoginScreen();
+                                    }
+
                                 }, 100);
                             }, 100);
                         }, 30);
@@ -169,17 +176,99 @@
         setTimeout(executeInitCommand, 30);
     }
 
+    // Function to show terminal directly if already logged in
+    function showTerminalDirectly() {
+        const userName = localStorage.getItem('agent_username') || '';
+        showInitialMessage(userName);
+        
+        // Make the main terminal visible
+        document.querySelector('.ascii-container').classList.add('visible');
+        document.getElementById('terminalInput').focus();
+    }
+
+    // Show login screen
+    function showLoginScreen() {
+        const loginOverlay = document.getElementById('login-overlay');
+        const loginInput = document.getElementById('login-input');
+        const forgotIdentity = document.getElementById('forgot-identity');
+
+        if (!loginOverlay || !loginInput || !forgotIdentity) return;
+
+        loginOverlay.style.display = 'flex';
+        setTimeout(() => {
+            loginOverlay.style.opacity = '1';
+            loginInput.focus();
+        }, 10);
+
+        // Define handlers so they can be removed later
+        const enterHandler = (e) => handleLogin(e);
+        const forgotHandler = () => handleForgotIdentity();
+
+        function handleLogin(e) {
+            if (e.key === 'Enter') {
+                const identity = loginInput.value.trim();
+                // Save login state and username to localStorage
+                localStorage.setItem('agent_has_logged_in', 'true');
+                localStorage.setItem('agent_username', identity);
+                
+                loginOverlay.style.opacity = '0';
+                setTimeout(() => {
+                    // Clear the terminal for the new user session
+                    const terminalOutput = document.querySelector('.terminal-output');
+                    if (terminalOutput) terminalOutput.innerHTML = '';
+
+                    loginOverlay.style.display = 'none';
+                    showInitialMessage(identity); // Now show the terminal message with the user's identity
+                    
+                    // Make the main terminal visible
+                    document.querySelector('.ascii-container').classList.add('visible');
+
+                    document.getElementById('terminalInput').focus();
+                }, 500);
+
+                // Clean up listeners
+                loginInput.removeEventListener('keydown', enterHandler);
+                forgotIdentity.removeEventListener('click', forgotHandler);
+            }
+        }
+
+        function handleForgotIdentity() {
+            const popupOverlay = document.getElementById('identity-popup-overlay');
+            const closeButton = document.getElementById('close-identity-popup');
+
+            if (!popupOverlay || !closeButton) return;
+
+            popupOverlay.style.display = 'flex';
+            setTimeout(() => popupOverlay.style.opacity = '1', 10);
+
+            function closePopup() {
+                popupOverlay.style.opacity = '0';
+                setTimeout(() => popupOverlay.style.display = 'none', 500);
+                closeButton.removeEventListener('click', closePopup);
+            }
+
+            closeButton.addEventListener('click', closePopup);
+        }
+
+        loginInput.addEventListener('keydown', enterHandler);
+        forgotIdentity.addEventListener('click', forgotHandler);
+    }
+
     // Show initial help message
-    function showInitialMessage() {
+    function showInitialMessage(userName = '') {
         const terminalOutput = document.querySelector('.terminal-output');
         if (!terminalOutput) return;
 
         // Add welcome message
+        const welcomeText = userName ? `Bem-vindo, ${userName}.` : 'Bem-vindo ao Agent(e) Terminal.';
+        const welcomeHTML = `<span style="color: #00ff00; font-weight: bold;">${welcomeText}</span> Digite "help" para ver os comandos disponíveis.`;
+
+        // Store the current welcome message for the 'clear' command
+        currentWelcomeMessage = welcomeHTML;
+
         const welcomeLine = document.createElement('div');
         welcomeLine.className = 'output-line';
-        welcomeLine.style.color = '#00ff00';
-        welcomeLine.style.fontWeight = 'bold';
-        welcomeLine.textContent = 'Bem-vindo ao Agent(e) Terminal. Digite "help" para ver os comandos disponíveis.';
+        welcomeLine.innerHTML = currentWelcomeMessage;
         terminalOutput.appendChild(welcomeLine);
 
         // Scroll to bottom
@@ -552,10 +641,10 @@ Digite qualquer comando seguido de ENTER para executar.
                 return null;
 
             case 'about':
-                return `                    ████████╗██████╗  █████╗ ███████╗██╗  ██╗██╗     ██╗     
-                    ╚══██╔══╝██╔══██╗██╔══██╗██╔════╝██║  ██║██║     ██║     
-                       ██║   ██████╔╝███████║███████╗███████║██║     ██║     
-                       ██║   ██╔══██╗██╔══██║╚════██║██╔══██║██║     ██║     
+                return `                    ████████╗██████╗  █████╗ ███████╗██╗  ██╗██╗     ██╗
+                    ╚══██╔══╝██╔══██╗██╔══██╗██╔════╝██║  ██║██║     ██║
+                       ██║   ██████╔╝███████║███████╗███████║██║     ██║
+                       ██║   ██╔══██╗██╔══██║╚════██║██╔══██║██║     ██║
                        ██║   ██║  ██║██║  ██║███████║██║  ██║███████╗███████╗
                        ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝
 
@@ -614,13 +703,11 @@ README.md`;
         if (terminalOutput) {
             // Clear terminal but preserve initial message
             terminalOutput.innerHTML = '';
-            
-            // Re-add the initial welcome message
+
+            // Re-add the stored welcome message
             const welcomeLine = document.createElement('div');
             welcomeLine.className = 'output-line';
-            welcomeLine.style.color = '#00ff00';
-            welcomeLine.style.fontWeight = 'bold';
-            welcomeLine.textContent = 'Bem-vindo ao Agent(e) Terminal. Digite "help" para ver os comandos disponíveis.';
+            welcomeLine.innerHTML = currentWelcomeMessage;
             terminalOutput.appendChild(welcomeLine);
             
             // Scroll to bottom
@@ -727,19 +814,113 @@ README.md`;
             from { opacity: 0; }
             to { opacity: 1; }
         }
+
+        @keyframes subtle-glow {
+            0%, 100% { text-shadow: 0 0 3px rgba(170, 170, 170, 0.2); }
+            50% { text-shadow: 0 0 8px rgba(170, 170, 170, 0.6); }
+        }
+
+        /* Login Screen Styles */
+        #login-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: #000;
+            z-index: 9999;
+            display: none;
+            opacity: 0;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Courier New', 'Monaco', monospace;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .login-box {
+            border: 1px solid #333;
+            padding: 2rem 3rem;
+            background: #0c0c0c;
+            text-align: center;
+            animation: fadeIn 1s ease-in;
+        }
+        .login-title { font-size: 2rem; color: #00ff00; font-weight: bold; letter-spacing: 4px; }
+        .login-subtitle { font-size: 0.9rem; color: #888; margin-bottom: 2rem; }
+        .login-form label { display: block; color: #ccc; margin-bottom: 0.5rem; }
+        #login-input {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid #555;
+            color: #fff;
+            font-family: inherit;
+            font-size: 1.2rem;
+            text-align: center;
+            width: 300px;
+            padding: 0.5rem;
+        }
+        #login-input:focus { outline: none; border-bottom-color: #00ff00; }
+        .login-help { margin-top: 1.5rem; font-size: 0.9rem; }
+        #forgot-identity {
+            color: #aaa;
+            cursor: pointer;
+            text-decoration: underline;
+            transition: color 0.3s;
+            animation: subtle-glow 3s ease-in-out infinite;
+        }
+        #forgot-identity:hover { color: #00ff00; }
+
+        /* Identity Popup Styles */
+        #identity-popup-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10001; /* Above login overlay */
+            display: none;
+            opacity: 0;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Courier New', 'Monaco', monospace;
+            transition: opacity 0.5s ease-in-out;
+            backdrop-filter: blur(5px);
+        }
+        .identity-popup-box {
+            background: #0c0c0c;
+            border: 1px solid #333;
+            padding: 2rem;
+            max-width: 500px;
+            text-align: left;
+            animation: fadeIn 0.5s ease-in;
+        }
+        .identity-popup-box h3 {
+            color: #00ff00;
+            margin-top: 0;
+            font-size: 1.2rem;
+        }
+        .identity-popup-box p {
+            color: #ccc;
+            line-height: 1.6;
+            font-size: 0.9rem;
+        }
+        .identity-popup-footer {
+            text-align: right;
+            margin-top: 1.5rem;
+        }
+        #close-identity-popup {
+            background: transparent;
+            border: 1px solid #555;
+            color: #ccc;
+            padding: 0.5rem 1rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        #close-identity-popup:hover {
+            background: #333;
+            color: #fff;
+            border-color: #888;
+        }
     `;
     document.head.appendChild(style);
 
-    // Initialize when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initTerminalInterface);
-    } else {
-        initTerminalInterface();
-    }
-
-    // Add keyboard shortcuts
-    document.addEventListener('keydown', function(e) {
-        // Ctrl/Cmd + K to focus terminal
+    function addGlobalEventListeners(e) {
         if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
             e.preventDefault();
             const terminalInput = document.getElementById('terminalInput');
@@ -756,15 +937,7 @@ README.md`;
                 updateCursorPosition();
             }
         }
-    });
-
-    // Add hover effects for better UX
-    const terminalInput = document.getElementById('terminalInput');
-    if (terminalInput) {
-        terminalInput.title = 'Digite comandos do terminal (Ctrl+K para focar, Esc para limpar)';
     }
-
-    // Initialize popup functionality
     function initPopups() {
         const popupTriggers = document.querySelectorAll('.popup-trigger');
         const popups = document.querySelectorAll('.popup');
@@ -808,13 +981,6 @@ README.md`;
                 popups.forEach(popup => popup.classList.remove('show'));
             }
         });
-    }
-
-    // Initialize popups when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initPopups);
-    } else {
-        initPopups();
     }
 
     // Floating Commands System
@@ -883,13 +1049,6 @@ README.md`;
         
         // Then show every 60 seconds
         setInterval(showFloatingCommand, 60000);
-    }
-
-    // Initialize floating commands when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initFloatingCommands);
-    } else {
-        initFloatingCommands();
     }
 
     // Monitoring Log System
@@ -970,13 +1129,6 @@ README.md`;
         }, 1000);
     }
 
-    // Initialize monitoring log when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initMonitoringLog);
-    } else {
-        initMonitoringLog();
-    }
-
     // Configuration Panel System
     function initConfigPanel() {
         // Toggle switches
@@ -1055,10 +1207,32 @@ README.md`;
             });
             observer.observe(configPopup, { attributes: true });
         }
+
+        // Add event listeners for config buttons
+        const btnGerarRelatorio = document.getElementById('btnGerarRelatorio');
+        if (btnGerarRelatorio) {
+            btnGerarRelatorio.addEventListener('click', gerarRelatorio);
+        }
+        const btnModoAvancado = document.getElementById('btnModoAvancado');
+        if (btnModoAvancado) {
+            btnModoAvancado.addEventListener('click', modoAvancado);
+        }
+    }
+
+    // Logout functionality
+    function initLogout() {
+        const logoutButton = document.getElementById('logout-button');
+        if (logoutButton) {
+            logoutButton.addEventListener('click', () => {
+                // Simply show the login screen again to allow changing the name
+                // This will re-attach the necessary event listeners.
+                showLoginScreen();
+            });
+        }
     }
 
     // Global functions for config panel
-    window.gerarRelatorio = function() {
+    function gerarRelatorio() {
         const warning = document.getElementById('configWarning');
         if (warning) {
             warning.textContent = 'Relatório gerado. Personalidade vendida com sucesso.';
@@ -1070,9 +1244,9 @@ README.md`;
         }
         
         showConfigLog(`report.generator | dados pessoais coletados | monetização ativa`);
-    };
+    }
 
-    window.modoAvancado = function() {
+    function modoAvancado() {
         const terminalInput = document.getElementById('terminalInput');
         if (terminalInput) {
             terminalInput.focus();
@@ -1086,7 +1260,7 @@ README.md`;
         }
         
         showConfigLog(`advanced.mode | acesso negado | privilégios insuficientes`);
-    };
+    }
 
     function showConfigWarning(message) {
         const warning = document.getElementById('configWarning');
@@ -1120,12 +1294,30 @@ README.md`;
         }, 100);
     }
 
-    // Initialize config panel when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initConfigPanel);
-    } else {
+    // Main initialization function
+    function main() {
+        initTerminalInterface();
+        initPopups();
+        initFloatingCommands();
+        initMonitoringLog();
         initConfigPanel();
+
+        // Add global listeners and UI enhancements
+        document.addEventListener('keydown', (e) => addGlobalEventListeners(e));
+        const terminalInput = document.getElementById('terminalInput');
+        if (terminalInput) {
+            terminalInput.title = 'Digite comandos do terminal (Ctrl+K para focar, Esc para limpar)';
+        }
+
+        // Initialize logout after everything else is set up
+        initLogout();
     }
 
+    // Run main function when the DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', main);
+    } else {
+        main();
+    }
 
 })();
